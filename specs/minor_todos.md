@@ -4,6 +4,20 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-02 | TASK-002: Pi availability check with install offer
+
+1. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:35` | insecure-design: curl-pipe-bash install pattern has no integrity check (CWE-494) -- Add SHA-256 verification once upstream publishes checksums
+2. [ ] `minor` **code-quality, code-simplifier** | `test/test-pi-availability.sh:6` | test-isolation: `set -uo pipefail` omits `-e`; failures outside `check()` continue silently -- Add `-e` or document intentional omission with a comment
+3. [ ] `minor` **test-quality** | `test/test-pi-availability.sh:64` | implementation-coupling: decline+abort check doesn't verify proximity; words could appear in different branches -- Use regex like `r'declin.{0,200}abort'` for tighter assertion
+4. [ ] `minor` **test-quality** | `test/test-pi-availability.sh:68` | missing-test: No test for install-failure sub-branch (post-install verification fails) -- Add assertion for 'install manually' or 'did not succeed' text
+5. [ ] `minor` **performance** | `test/test-pi-availability.sh:32` | blocking-io: Spawns fresh python3 process per assertion (8 times); reads SKILL.md each time -- Consolidate into single python3 invocation or extract section in bash
+6. [ ] `minor` **security** | `test/test-pi-availability.sh:17` | logging: check() suppresses stderr; test failures show no diagnostic output -- Capture stderr and print on failure only
+7. [ ] `minor` **code-simplifier** | `test/test-pi-availability.sh:29` | naming: `check_section1` name embeds section number rather than intent -- Rename to `check_availability_section`
+8. [ ] `minor` **housekeeper, code-quality** | `specs/tasks/_index.md:12` | documentation-stale: M1 milestone status shows 'Not Started' despite TASK-001 Complete and TASK-002 In Progress -- Update to 'In Progress'
+9. [ ] `minor` **architecture** | `skills/delegate-to-minion/SKILL.md:41` | pattern-violation: Post-install failure path lacks explicit 'abort' and 'do not proceed' mirroring decline path -- Add explicit abort instruction for consistency
+
+---
+
 ## Run: 2026-04-02 | TASK-001: Plugin directory structure and manifest
 
 1. [ ] `major` **code-quality, code-simplifier** | `test/validate-plugin-structure.sh:6` | error-handling: `set -uo pipefail` is missing `-e` flag; without it, unguarded failures outside `check()` continue silently -- Add `-e` or document its intentional omission with a comment
