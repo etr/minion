@@ -1,0 +1,9 @@
+{
+  "name": "minion",
+  "version": "0.1.0",
+  "description": "Delegate tasks to any AI model via Pi CLI without leaving Claude Code",
+  "author": {
+    "name": "Sebastiano Merlino"
+  },
+  "keywords": ["delegation", "multi-model", "pi", "minion"]
+}
