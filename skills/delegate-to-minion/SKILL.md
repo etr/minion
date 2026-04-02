@@ -11,13 +11,40 @@ Core execution logic for dispatching tasks to external AI models via Pi CLI.
 ## Execution Flow
 
 ### 1. Check Pi Availability
-<!-- TODO (TASK-002): Implement Pi CLI detection -->
-Check if `pi` is available in PATH:
+
+Run this check using the Bash tool:
 ```bash
 command -v pi
 ```
-- If not found: offer installation instructions from shittycodingagent.ai
-- If user declines: abort with clear message that Pi is required
+
+**If `pi` IS found** (exit code 0): proceed silently to Step 2. Do not print any message about Pi.
+
+**If `pi` is NOT found** (non-zero exit code): present the following to the user:
+
+> Pi CLI is not installed. Pi is required to delegate tasks to external models.
+>
+> You can install Pi from: https://shittycodingagent.ai (you may want to visit this URL in your browser first to verify the domain)
+>
+> Would you like me to attempt the installation now?
+
+Then wait for the user's response:
+
+- **If the user accepts** (yes, sure, ok, go ahead, install it, etc.):
+  Run the Pi installation command via the Bash tool (the user will be prompted to review and approve before execution):
+  ```bash
+  curl -fsSL https://shittycodingagent.ai/install.sh | bash
+  ```
+  After installation, verify Pi is now available:
+  ```bash
+  command -v pi
+  ```
+  If verification fails, inform the user that installation did not succeed and suggest they install manually from https://shittycodingagent.ai, then abort.
+
+- **If the user declines** (no, nope, cancel, skip, etc.):
+  Respond with:
+  > Pi is required to delegate tasks to external models. Please install Pi from https://shittycodingagent.ai and try again.
+
+  Then abort. Do not proceed to any further steps.
 
 ### 2. Detect Invocation Mode
 <!-- TODO (TASK-004): Implement mode detection logic -->
