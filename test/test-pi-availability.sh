@@ -29,9 +29,9 @@ SKILL_FILE="$ROOT/skills/delegate-to-minion/SKILL.md"
 check_section1() {
   local description="$1"
   local assertion="$2"
-  check "$description" python3 -c "
-import re
-content = open('$SKILL_FILE').read()
+  check "$description" env SKILL_FILE="$SKILL_FILE" python3 -c "
+import os, re
+content = open(os.environ['SKILL_FILE']).read()
 m = re.search(r'### 1\. Check Pi Availability\n(.*?)### 2\.', content, re.DOTALL)
 section = m.group(1) if m else ''
 $assertion
