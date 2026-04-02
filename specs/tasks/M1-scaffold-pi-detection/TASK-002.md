@@ -27,4 +27,4 @@ Detect whether Pi CLI is installed and guide the user to install it if missing.
 **Related Requirements:** PRD-MIN-REQ-001, PRD-MIN-REQ-002, PRD-MIN-REQ-003
 **Related Decisions:** DR-002
 
-**Status:** In Progress
+**Status:** Complete

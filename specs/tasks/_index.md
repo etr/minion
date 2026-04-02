@@ -21,7 +21,7 @@
 | # | Task | Milestone | Estimate | Status | Blocked by |
 |---|------|-----------|----------|--------|------------|
 | TASK-001 | Plugin directory structure and manifest | M1 | S | Complete | None |
-| TASK-002 | Pi availability check with install offer | M1 | S | In Progress | TASK-001 |
+| TASK-002 | Pi availability check with install offer | M1 | S | Complete | TASK-001 |
 | TASK-003 | minion-run.sh with inline mode | M2 | M | Not Started | TASK-001 |
 | TASK-004 | Skill inline invocation flow | M2 | M | Not Started | TASK-002, TASK-003 |
 | TASK-005 | Minion file resolution | M3 | S | Not Started | TASK-004 |
