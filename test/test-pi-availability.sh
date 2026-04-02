@@ -59,10 +59,13 @@ check_section1 "describes proceed silently when Pi is found" \
   "s = section.lower(); assert 'proceed' in s and 'silent' in s"
 
 check_section1 "describes install attempt on user acceptance" \
-  "s = section.lower(); assert 'install' in s and 'accept' in s"
+  "s = section.lower(); assert 'curl' in s and 'install.sh' in s"
 
 check_section1 "describes abort on user decline" \
-  "s = section.lower(); assert 'decline' in s"
+  "s = section.lower(); assert 'decline' in s and 'abort' in s"
+
+check_section1 "verifies pi after installation with command -v pi" \
+  "assert section.count('command -v pi') >= 2, f'expected command -v pi at least twice, found {section.count(\"command -v pi\")} time(s)'"
 
 echo ""
 

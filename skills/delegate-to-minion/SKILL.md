@@ -23,14 +23,14 @@ command -v pi
 
 > Pi CLI is not installed. Pi is required to delegate tasks to external models.
 >
-> You can install Pi from: https://shittycodingagent.ai
+> You can install Pi from: https://shittycodingagent.ai (you may want to visit this URL in your browser first to verify the domain)
 >
 > Would you like me to attempt the installation now?
 
 Then wait for the user's response:
 
 - **If the user accepts** (yes, sure, ok, go ahead, install it, etc.):
-  Run the Pi installation command via the Bash tool:
+  Run the Pi installation command via the Bash tool (the user will be prompted to review and approve before execution):
   ```bash
   curl -fsSL https://shittycodingagent.ai/install.sh | bash
   ```
