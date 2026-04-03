@@ -166,21 +166,6 @@ run_and_check \
   -- "$MINION_RUN" --provider openai --model gpt-4
 
 run_and_check \
-  "multiple missing params reported together" \
-  1 \
-  "provider" \
-  "" \
-  -- "$MINION_RUN" --prompt hello
-
-# Also check model is in that output
-run_and_check \
-  "multiple missing params includes model" \
-  1 \
-  "model" \
-  "" \
-  -- "$MINION_RUN" --prompt hello
-
-run_and_check \
   "no arguments exits non-zero with all three field names" \
   1 \
   "missing:" \
@@ -243,7 +228,17 @@ run_and_check \
   "something went wrong" \
   -- env MOCK_PI_EXIT_CODE=1 MOCK_PI_STDERR="something went wrong" "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
-# --- 15. Unknown flag ---
+# --- 15. Flag with no value ---
+echo ""
+echo "-- Flag with missing value --"
+run_and_check \
+  "flag with no value exits 2 with error on stderr" \
+  2 \
+  "" \
+  "missing value for --provider" \
+  -- "$MINION_RUN" --provider
+
+# --- 16. Unknown flag ---
 echo ""
 echo "-- Unknown flags --"
 run_and_check \

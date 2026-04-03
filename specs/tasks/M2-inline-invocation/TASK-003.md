@@ -8,12 +8,12 @@
 Create the bash helper script that accepts inline parameters and executes Pi CLI.
 
 **Action Items:**
-- [ ] Create `lib/minion-run.sh` with argument parsing for `--provider`, `--model`, `--prompt`
-- [ ] Validate all three required params; exit non-zero with missing field names if any absent
-- [ ] Construct Pi CLI command: `pi --provider <val> --model <val> "<prompt>"`
-- [ ] Execute Pi and capture stdout/stderr
-- [ ] Exit with Pi's exit code; output Pi's stdout on success, stderr on failure
-- [ ] Make script executable (`chmod +x`)
+- [x] Create `lib/minion-run.sh` with argument parsing for `--provider`, `--model`, `--prompt`
+- [x] Validate all three required params; exit non-zero with missing field names if any absent
+- [x] Construct Pi CLI command: `pi --provider <val> --model <val> "<prompt>"`
+- [x] Execute Pi and capture stdout/stderr
+- [x] Exit with Pi's exit code; output Pi's stdout on success, stderr on failure
+- [x] Make script executable (`chmod +x`)
 
 **Dependencies:**
 - Blocked by: TASK-001
@@ -29,4 +29,4 @@ Create the bash helper script that accepts inline parameters and executes Pi CLI
 **Related Requirements:** PRD-MIN-REQ-004, PRD-MIN-REQ-013, PRD-MIN-REQ-015
 **Related Decisions:** DR-002, DR-003
 
-**Status:** Not Started
+**Status:** Complete
