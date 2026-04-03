@@ -23,7 +23,7 @@
 | TASK-001 | Plugin directory structure and manifest | M1 | S | Complete | None |
 | TASK-002 | Pi availability check with install offer | M1 | S | Complete | TASK-001 |
 | TASK-003 | minion-run.sh with inline mode | M2 | M | Complete | TASK-001 |
-| TASK-004 | Skill inline invocation flow | M2 | M | In Progress | TASK-002, TASK-003 |
+| TASK-004 | Skill inline invocation flow | M2 | M | Complete | TASK-002, TASK-003 |
 | TASK-005 | Minion file resolution | M3 | S | Not Started | TASK-004 |
 | TASK-006 | Frontmatter parsing and Pi flag mapping | M3 | M | Not Started | TASK-003 |
 | TASK-007 | Prompt composition and minion-file mode end-to-end | M3 | M | Not Started | TASK-005, TASK-006 |

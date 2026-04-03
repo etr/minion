@@ -4,6 +4,22 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-02 | TASK-004: Skill inline invocation flow
+
+1. [ ] `major` **security** | `skills/delegate-to-minion/SKILL.md:126` | injection: LLM-applied single-quote escaping is a structural risk; Claude may misapply the `'\''` idiom for prompts containing single quotes -- Consider adding `--prompt-file` flag to minion-run.sh to accept prompt via file instead of shell argument
+2. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:122` | injection: Pi stdout presented verbatim to conversation context; malicious Pi response could contain prompt-injection payloads -- Wrap Pi output in a labeled code fence to delineate as untrusted data
+3. [ ] `minor` **code-quality, test-quality** | `test/validate-plugin-structure.sh` | test-coverage: No automated check that COMMAND.md and SKILL.md contain the mode handoff phrases; drift between files would be caught only at runtime -- Add grep assertions for "Inline mode" in both files
+4. [ ] `minor` **code-quality** | `commands/minion/COMMAND.md:18` | code-elegance: Detection rule uses OR (`--provider` or `--model`); AND would be more robust discriminator since both are always required for inline mode -- Change to AND with explicit partial-inline fallback
+5. [ ] `minor` **test-quality** | `test/test-minion-run.sh:226` | missing-test: No test for Pi stderr passthrough on success (exit 0 with stderr) -- Add test with MOCK_PI_EXIT_CODE=0 and MOCK_PI_STDERR set
+6. [ ] `minor` **test-quality** | `test/test-minion-run.sh:238` | missing-test: Only `--provider` missing-value case tested; `--model` and `--prompt` missing-value paths untested -- Add symmetrical exit-2 tests for each flag
+7. [ ] `minor` **test-quality** | `test/test-minion-run.sh:142` | missing-test: No test for prompt with shell-sensitive characters (quotes, `$`, backticks) -- Add test verifying special chars pass through verbatim
+8. [ ] `minor` **architecture** | `specs/architecture.md:96` | adr-violation: Section 4.1 states argument validation happens in the command, but implementation defers validation to the skill per DR-004 -- Update section 4.1 to say argument parsing (not validation) is in the command
+9. [ ] `minor` **architecture** | `skills/delegate-to-minion/SKILL.md:139` | pattern-violation: Exit code 1 guidance says to report stderr, but minion-run.sh emits validation messages to stdout -- Either change minion-run.sh to use stderr or update skill guidance
+10. [ ] `minor` **spec-alignment** | `skills/delegate-to-minion/SKILL.md:138` | specification-gap: Exit code 1 branch in Step 7 is unreachable in inline mode since Step 3 validates before execution -- Add note that this is a defense-in-depth fallback
+11. [ ] `minor` **code-simplifier** | `commands/minion/COMMAND.md:27` | clarity: "join them as a single prompt string" does not specify separator (space implied) -- Add "join with a single space"
+
+---
+
 ## Run: 2026-04-02 | TASK-003: minion-run.sh with inline mode
 
 1. [ ] `minor` **security** | `lib/minion-run.sh:59` | input-validation: PROVIDER and MODEL passed to Pi with no format validation; a malformed value could cause unexpected Pi behavior -- Add allowlist regex e.g. `[a-zA-Z0-9_-]{1,64}`

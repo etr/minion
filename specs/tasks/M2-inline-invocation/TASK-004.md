@@ -8,11 +8,11 @@
 Wire the command and skill together so inline invocation executes Pi and returns output to Claude's context.
 
 **Action Items:**
-- [ ] Update COMMAND.md to detect inline mode (presence of `--provider`/`--model` flags in args)
-- [ ] Update SKILL.md to invoke `lib/minion-run.sh` via Bash tool with inline params after Pi check passes
-- [ ] Return Pi's full output to Claude's conversation context
-- [ ] Handle missing param errors: show which param is missing and usage examples
-- [ ] Handle Pi execution failure: surface stderr and exit code to user
+- [x] Update COMMAND.md to detect inline mode (presence of `--provider`/`--model` flags in args)
+- [x] Update SKILL.md to invoke `lib/minion-run.sh` via Bash tool with inline params after Pi check passes
+- [x] Return Pi's full output to Claude's conversation context
+- [x] Handle missing param errors: show which param is missing and usage examples
+- [x] Handle Pi execution failure: surface stderr and exit code to user
 
 **Dependencies:**
 - Blocked by: TASK-002, TASK-003
@@ -27,4 +27,4 @@ Wire the command and skill together so inline invocation executes Pi and returns
 **Related Requirements:** PRD-MIN-REQ-004, PRD-MIN-REQ-005, PRD-MIN-REQ-014, PRD-MIN-REQ-015
 **Related Decisions:** DR-002, DR-004
 
-**Status:** Not Started
+**Status:** Complete

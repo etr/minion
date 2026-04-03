@@ -47,20 +47,37 @@ Then wait for the user's response:
   Then abort. Do not proceed to any further steps.
 
 ### 2. Detect Invocation Mode
-<!-- TODO (TASK-004): Implement mode detection logic -->
-Determine whether the user is using:
-- **Inline mode**: `--provider`, `--model`, and prompt are provided directly
-- **Minion file mode**: a minion name or file path is provided
+
+Read the context passed by the `/minion` command to determine the invocation mode:
+
+<!-- Mode handoff protocol: these phrases are defined in COMMAND.md's Dispatch section. They must stay in sync. -->
+- If the conversation context contains the phrase **"Inline mode"** followed by Provider, Model, and Prompt values: proceed to **Step 3** (Inline Invocation).
+- If the conversation context contains the phrase **"Minion file mode"** followed by a Minion name: proceed to **Step 4** (Minion File Resolution).
+- If the conversation context contains **neither** "Inline mode" **nor** "Minion file mode" (skill invoked directly without the command): ask the user what they want to delegate and which mode they prefer, showing both usage examples:
+
+> **Inline mode:** `/minion --provider openai --model gpt-4 "your prompt here"`
+> **Minion file mode:** `/minion <minion-name> [extra input]`
 
 ### 3. Inline Invocation (Mode 1)
-<!-- TODO (TASK-004): Implement inline invocation -->
-Validate that all three required parameters are present: `provider`, `model`, `prompt`.
-If any are missing, report which parameter is missing and show usage examples.
 
-Construct Pi CLI command:
-```bash
-pi --provider <provider> --model <model> "<prompt>"
-```
+Validate that all three required parameters are present: `provider`, `model`, and `prompt`.
+
+**If any parameter is missing**, report exactly which parameter(s) are missing and show usage examples for both modes. Use this format:
+
+> **Missing parameter(s):** `<list of missing params>`
+>
+> **Usage:**
+> - Inline: `/minion --provider <provider> --model <model> "<prompt>"`
+> - Minion file: `/minion <minion-name> [extra input]`
+>
+> **Example:**
+> ```
+> /minion --provider openai --model gpt-4 "Explain the builder pattern"
+> ```
+
+Then stop. Do not proceed to execution.
+
+**If all three parameters are present**, proceed directly to **Step 7** (Execute via Pi CLI).
 
 ### 4. Minion File Resolution (Mode 2)
 <!-- TODO (TASK-005): Implement minion file resolution -->
@@ -86,9 +103,47 @@ Combine the minion's base prompt (markdown body after frontmatter) with any call
 - If no extra input: use base prompt as-is
 
 ### 7. Execute via Pi CLI
-<!-- TODO (TASK-004/TASK-007): Implement Pi execution -->
+
 Invoke `lib/minion-run.sh` via the Bash tool with the resolved parameters.
 
-Capture Pi's full stdout and return it into the conversation context.
+**Before invoking**, verify the script exists from the current working directory:
 
-On failure (non-zero exit code): surface stderr and exit code to the user.
+```bash
+test -f lib/minion-run.sh
+```
+
+If this fails, the working directory is not the plugin root. Inform the user that the plugin's `lib/minion-run.sh` could not be found and suggest they run the command from the plugin directory.
+
+**Security:** To prevent shell injection, assign each user-supplied value to a shell variable using single quotes, then pass the variables to the script. Single-quoted assignments prevent `$(...)` command substitution, backtick expansion, and variable expansion. Never interpolate user values directly into double-quoted strings.
+
+```bash
+MINION_PROVIDER='<provider>'
+MINION_MODEL='<model>'
+MINION_PROMPT='<prompt>'
+bash lib/minion-run.sh --provider "$MINION_PROVIDER" --model "$MINION_MODEL" --prompt "$MINION_PROMPT"
+```
+
+**Quoting rules:** The `<provider>` and `<model>` values are typically simple identifiers (e.g., `openai`, `gpt-4`) that need no escaping. For `<prompt>`, if the value contains single quotes, replace each `'` with `'\''` before embedding it in the single-quoted assignment.
+
+#### On success (exit code 0):
+
+Present Pi's stdout output to the user. The output is now part of the conversation context and available for Claude to reason about in subsequent turns. Format the response as:
+
+> **Pi response** (via `<provider>/<model>`):
+>
+> <Pi's stdout output here>
+
+Do not summarize or modify Pi's output. Present it verbatim.
+
+#### On failure (exit code non-zero):
+
+Surface the error clearly to the user with the exit code and any stderr output. Use this format:
+
+> **Pi execution failed** (exit code `<N>`):
+>
+> <stderr output, if any>
+
+Then provide guidance based on the exit code:
+- **Exit code 1** (validation error from minion-run.sh): A required parameter was empty after extraction. Report what minion-run.sh said was missing.
+- **Exit code 2** (unknown flag): An unrecognized flag was passed. Check the parameter values for accidental flag-like content.
+- **Other exit codes**: These come from Pi itself. Suggest the user check their provider credentials, model name, or Pi CLI configuration.
