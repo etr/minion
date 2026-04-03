@@ -4,6 +4,20 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-02 | TASK-003: minion-run.sh with inline mode
+
+1. [ ] `minor` **security** | `lib/minion-run.sh:59` | input-validation: PROVIDER and MODEL passed to Pi with no format validation; a malformed value could cause unexpected Pi behavior -- Add allowlist regex e.g. `[a-zA-Z0-9_-]{1,64}`
+2. [ ] `minor` **security** | `lib/minion-run.sh:51` | input-validation: PROMPT has no length limit; unbounded prompt could amplify Pi API costs -- Consider max length check e.g. 65536 chars
+3. [ ] `minor` **code-quality, code-simplifier** | `lib/minion-run.sh:63` | code-elegance: `exit $?` after `"${cmd[@]}"` is redundant; shell exits with last command's code naturally -- Remove line 63
+4. [ ] `minor` **code-quality, test-quality** | `test/test-minion-run.sh:147` | test-coverage: Missing-param tests check for bare field name (e.g. "model") not full format "missing: model"; format change wouldn't be caught -- Change stdout_pattern to "missing: model" etc.
+5. [ ] `minor` **code-quality** | `test/test-minion-run.sh:176` | test-coverage: `check_no_args_all_fields` inline function uses different style from `run_and_check` pattern used everywhere else -- Consolidate into single `run_and_check` with pattern "missing: provider, model, prompt"
+6. [ ] `minor` **code-simplifier, performance** | `test/test-minion-run.sh:96` | code-structure: `run_and_check` evaluates grep conditions twice (once for pass/fail, once for diagnostics) -- Store results in boolean vars and reuse
+7. [ ] `minor` **code-simplifier** | `test/test-minion-run.sh:62` | code-structure: `--` separator in `run_and_check` is optional but always used; hybrid pattern adds cognitive overhead -- Make mandatory or remove
+8. [ ] `minor` **test-quality** | `test/test-minion-run.sh:249` | missing-test: The `*` branch (bare positional word, line 40-43 of minion-run.sh) has no test; only `-*` unknown flag branch is tested -- Add test with positional arg after all flags
+9. [ ] `minor` **spec-alignment** | `lib/minion-run.sh:62` | action-item: Action item says "output stdout on success, stderr on failure" but implementation passes both through unconditionally -- Update action item wording to match implementation
+
+---
+
 ## Run: 2026-04-02 | TASK-002: Pi availability check with install offer
 
 1. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:35` | insecure-design: curl-pipe-bash install pattern has no integrity check (CWE-494) -- Add SHA-256 verification once upstream publishes checksums
@@ -13,7 +27,7 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 5. [ ] `minor` **performance** | `test/test-pi-availability.sh:32` | blocking-io: Spawns fresh python3 process per assertion (8 times); reads SKILL.md each time -- Consolidate into single python3 invocation or extract section in bash
 6. [ ] `minor` **security** | `test/test-pi-availability.sh:17` | logging: check() suppresses stderr; test failures show no diagnostic output -- Capture stderr and print on failure only
 7. [ ] `minor` **code-simplifier** | `test/test-pi-availability.sh:29` | naming: `check_section1` name embeds section number rather than intent -- Rename to `check_availability_section`
-8. [ ] `minor` **housekeeper, code-quality** | `specs/tasks/_index.md:12` | documentation-stale: M1 milestone status shows 'Not Started' despite TASK-001 Complete and TASK-002 In Progress -- Update to 'In Progress'
+8. [x] `minor` **housekeeper, code-quality** | `specs/tasks/_index.md:12` | documentation-stale: M1 milestone status shows 'Not Started' despite TASK-001 Complete and TASK-002 In Progress -- Update to 'In Progress'
 9. [ ] `minor` **architecture** | `skills/delegate-to-minion/SKILL.md:41` | pattern-violation: Post-install failure path lacks explicit 'abort' and 'do not proceed' mirroring decline path -- Add explicit abort instruction for consistency
 
 ---
