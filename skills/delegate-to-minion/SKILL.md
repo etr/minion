@@ -96,7 +96,7 @@ If the value contains single quotes, replace each `'` with `'\''` before embeddi
 If the minion name starts with `/`, treat it as an absolute path. Check whether the file exists using `test -f`:
 
 ```bash
-test -f '$MINION_NAME'
+test -f "$MINION_NAME"
 ```
 
 **If the file exists:** the resolved absolute path is `$MINION_NAME`. Proceed to **Step 5**.
@@ -113,7 +113,19 @@ Then stop. Do not proceed to any further steps.
 
 #### Case B: Name resolution (does not start with `/`)
 
-If the minion name does not start with `/`, resolve it by checking the following locations in order:
+If the minion name does not start with `/`, first validate that the name contains only safe characters to prevent path traversal (CWE-22). The name must match only alphanumeric characters, hyphens, and underscores:
+
+```bash
+echo "$MINION_NAME" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "ERROR: invalid minion name"; exit 1; }
+```
+
+If validation fails, report the error and abort:
+
+> **Invalid minion name.** The name `<name>` contains characters that are not allowed. Minion names may only contain letters, numbers, hyphens, and underscores.
+
+Then stop. Do not proceed to any further steps.
+
+If validation passes, resolve the name by checking the following locations in order:
 
 1. **Project-local:** `./.claude/minions/<name>.md`
 2. **User-global:** `$HOME/.claude/minions/<name>.md`
@@ -122,9 +134,10 @@ Run a single bash block to perform the lookup. Use `test -f` for each candidate 
 
 ```bash
 MINION_NAME='<name>'
+echo "$MINION_NAME" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "ERROR: invalid minion name"; exit 1; }
 
 if test -f "./.claude/minions/${MINION_NAME}.md"; then
-  echo "FOUND:$(cd . && pwd)/.claude/minions/${MINION_NAME}.md"
+  echo "FOUND:$(pwd)/.claude/minions/${MINION_NAME}.md"
 elif test -f "$HOME/.claude/minions/${MINION_NAME}.md"; then
   echo "FOUND:$HOME/.claude/minions/${MINION_NAME}.md"
 else

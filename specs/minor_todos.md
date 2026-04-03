@@ -4,6 +4,30 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-03 | TASK-005: Minion file resolution
+
+1. [ ] `major` **code-quality, code-simplifier** | `test/test-minion-file-resolution.sh:75` | multi-assert: 'error reports searched locations' bundles 4 assertions in one check; failure doesn't indicate which failed -- Split into separate single-assertion checks
+2. [ ] `major` **code-quality, code-simplifier** | `test/test-minion-file-resolution.sh:119` | multi-assert: protocol tokens check bundles FOUND:, NOT_FOUND, SEARCHED: in one check -- Split into individual token checks
+3. [ ] `major` **code-quality, code-simplifier** | `test/test-minion-file-resolution.sh:125` | multi-assert: 'invalid name error' tests error message language AND character class pattern together -- Split into two separate checks
+4. [ ] `major` **code-quality** | `test/test-minion-file-resolution.sh:32` | test-coverage: All 16 tests are structural text-presence checks; no integration tests execute actual bash resolution logic -- Add at least one happy-path and one NOT_FOUND integration test
+5. [ ] `major` **code-simplifier** | `skills/delegate-to-minion/SKILL.md:136` | needless-repetition: Name validation command appears twice (standalone + inside combined bash block) -- Keep only the combined block
+6. [ ] `major` **code-simplifier** | `test/test-minion-file-resolution.sh:32` | needless-repetition: check_section4 repeats `env SKILL_FILE=... python3 -c` inline on every call -- Inline invocation into the helper function
+7. [ ] `minor` **spec-alignment** | `skills/delegate-to-minion/SKILL.md:131` | specification-gap: SEARCHED paths use relative form (./) while FOUND absolutizes via $(pwd) -- Absolutize SEARCHED paths for consistency
+8. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:210` | input-validation: Provider/model escaping assumes 'simple identifiers' but minion file values are user-controlled -- Apply same single-quote escaping to provider/model
+9. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:150` | input-validation: Absolute paths with newlines could produce malformed FOUND: output -- Validate no control characters in absolute path
+10. [ ] `minor` **housekeeper** | `specs/architecture.md:237` | documentation-stale: Security section doesn't mention CWE-22 path traversal mitigation added in TASK-005 -- Add note about name character validation
+11. [ ] `minor` **architecture** | `test/test-minion-file-resolution.sh:6` | pattern-violation: python3 test dependency conflicts with DR-003 zero-dependency ethos -- Document test exemption or rewrite in bash
+12. [ ] `minor` **performance** | `test/test-minion-file-resolution.sh:32` | missing-caching: Each check_section4 forks python3 and reads SKILL.md (16 times) -- Consolidate into single invocation
+13. [ ] `minor` **code-simplifier** | `skills/delegate-to-minion/SKILL.md:171` | comments: Resolved path subsection restates what Cases A and B already say -- Remove redundant subsection
+14. [ ] `minor` **code-simplifier** | `skills/delegate-to-minion/SKILL.md:86` | comments: Security note (single-quote escaping) duplicated from Step 7 -- Reference Step 7 instead
+15. [ ] `minor` **code-quality** | `test/test-minion-file-resolution.sh:53` | test-quality: `and '/' in section` is trivially true in any path-related section -- Drop redundant clause
+16. [ ] `minor` **code-quality** | `test/test-minion-file-resolution.sh:6` | readability: `set -uo pipefail` omits `-e`; intentional but undocumented -- Add comment explaining why
+17. [ ] `minor` **test-quality** | `test/test-minion-file-resolution.sh:64` | implementation-coupling: Resolution order anchored to 'absolute' word in intro, not Case A heading -- Anchor to 'case a:' instead
+18. [ ] `minor` **test-quality** | `test/test-minion-file-resolution.sh:114` | implementation-coupling: Path traversal check passes on 'grep' anywhere in section -- Remove 'grep' shortcut, use specific terms
+19. [ ] `minor` **code-simplifier** | `test/test-minion-file-resolution.sh:32` | naming: check_section4 named after section number not intent -- Rename to check_resolution_section
+
+---
+
 ## Run: 2026-04-02 | TASK-004: Skill inline invocation flow
 
 1. [ ] `major` **security** | `skills/delegate-to-minion/SKILL.md:126` | injection: LLM-applied single-quote escaping is a structural risk; Claude may misapply the `'\''` idiom for prompts containing single quotes -- Consider adding `--prompt-file` flag to minion-run.sh to accept prompt via file instead of shell argument

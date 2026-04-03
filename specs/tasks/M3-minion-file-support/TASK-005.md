@@ -8,12 +8,12 @@
 Resolve a minion name or path to an actual file on disk using the 3-tier lookup order.
 
 **Action Items:**
-- [ ] In SKILL.md, add resolution logic when first arg is not `--provider` (minion-file mode)
-- [ ] If arg starts with `/`: treat as absolute path, check file exists
-- [ ] Else check `./.claude/minions/<name>.md`
-- [ ] Else check `~/.claude/minions/<name>.md`
-- [ ] On resolution failure: report all paths searched and abort with actionable error
-- [ ] Pass resolved absolute path to `minion-run.sh`
+- [x] In SKILL.md, add resolution logic when first arg is not `--provider` (minion-file mode)
+- [x] If arg starts with `/`: treat as absolute path, check file exists
+- [x] Else check `./.claude/minions/<name>.md`
+- [x] Else check `~/.claude/minions/<name>.md`
+- [x] On resolution failure: report all paths searched and abort with actionable error
+- [x] Pass resolved absolute path to `minion-run.sh`
 
 **Dependencies:**
 - Blocked by: TASK-004
@@ -29,4 +29,4 @@ Resolve a minion name or path to an actual file on disk using the 3-tier lookup 
 **Related Requirements:** PRD-MIN-REQ-006, PRD-MIN-REQ-007
 **Related Decisions:** DR-002
 
-**Status:** Not Started
+**Status:** In Progress
