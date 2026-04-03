@@ -90,7 +90,7 @@ if [ -n "$FILE_PATH" ]; then
   [ -z "$MODEL" ]    && missing="${missing:+$missing, }model"
 
   if [ -n "$missing" ]; then
-    echo "missing: $missing"
+    echo "missing: $missing" >&2
     exit 1
   fi
 
@@ -156,7 +156,7 @@ else
   [ -z "$PROMPT" ]   && missing="${missing:+$missing, }prompt"
 
   if [ -n "$missing" ]; then
-    echo "missing: $missing"
+    echo "missing: $missing" >&2
     exit 1
   fi
 

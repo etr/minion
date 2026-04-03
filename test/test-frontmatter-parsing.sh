@@ -267,21 +267,40 @@ no-tools: false
 ---
 Do stuff")"
 
-# We need a custom check: --no-tools should NOT appear
-check_no_tools_absent() {
+# Parameterized helper: verify a flag is NOT present in stdout
+check_flag_absent() {
+  local flag="$1" file="$2"
   local stdout
   set +e
-  stdout="$("$MINION_RUN" --file "$MINFILE_BOOL2" 2>/dev/null)"
+  stdout="$("$MINION_RUN" --file "$file" 2>/dev/null)"
   local rc=$?
   set -e
   [ "$rc" = "0" ] || return 1
-  # --no-tools should NOT be in the output
-  if echo "$stdout" | grep -qF -- "--no-tools"; then
-    return 1
-  fi
+  echo "$stdout" | grep -qF -- "$flag" && return 1
   return 0
 }
-check "no-tools: false omits --no-tools" check_no_tools_absent
+
+check "no-tools: false omits --no-tools" check_flag_absent "--no-tools" "$MINFILE_BOOL2"
+
+# Test: no-session: false omits --no-session
+MINFILE_BOOL2B="$(create_minion_file "---
+provider: openai
+model: gpt-4
+no-session: false
+---
+Do stuff")"
+
+check "no-session: false omits --no-session" check_flag_absent "--no-session" "$MINFILE_BOOL2B"
+
+# Test: stream: false omits --stream
+MINFILE_BOOL2C="$(create_minion_file "---
+provider: openai
+model: gpt-4
+stream: false
+---
+Do stuff")"
+
+check "stream: false omits --stream" check_flag_absent "--stream" "$MINFILE_BOOL2C"
 
 # Test: all three booleans when true
 MINFILE_BOOL3="$(create_minion_file "---
@@ -379,19 +398,7 @@ extensions:
 ---
 Do stuff")"
 
-check_no_ext_flags() {
-  local stdout
-  set +e
-  stdout="$("$MINION_RUN" --file "$MINFILE_LIST4" 2>/dev/null)"
-  local rc=$?
-  set -e
-  [ "$rc" = "0" ] || return 1
-  if echo "$stdout" | grep -qF -- " -e "; then
-    return 1
-  fi
-  return 0
-}
-check "empty extensions list emits no -e flags" check_no_ext_flags
+check "empty extensions list emits no -e flags" check_flag_absent " -e " "$MINFILE_LIST4"
 
 # ============================================================
 # Phase 5: Validation & Edge Cases
@@ -408,8 +415,8 @@ Do stuff")"
 run_and_check \
   "missing provider exits 1 with message" \
   1 \
-  "missing: provider" \
   "" \
+  "missing: provider" \
   -- "$MINION_RUN" --file "$MINFILE_VAL1"
 
 # Test: missing model
@@ -421,8 +428,8 @@ Do stuff")"
 run_and_check \
   "missing model exits 1 with message" \
   1 \
-  "missing: model" \
   "" \
+  "missing: model" \
   -- "$MINION_RUN" --file "$MINFILE_VAL2"
 
 # Test: missing both
@@ -433,9 +440,19 @@ Do stuff")"
 run_and_check \
   "missing both exits 1 with both names" \
   1 \
-  "missing: provider, model" \
   "" \
+  "missing: provider, model" \
   -- "$MINION_RUN" --file "$MINFILE_VAL3"
+
+# Test: file with no frontmatter delimiters at all
+MINFILE_NODELIM="$(create_minion_file "Just plain text, no frontmatter delimiters at all.")"
+
+run_and_check \
+  "no frontmatter delimiters exits 1 with missing fields" \
+  1 \
+  "" \
+  "missing: provider, model" \
+  -- "$MINION_RUN" --file "$MINFILE_NODELIM"
 
 # Test: exit code passthrough in file mode
 MINFILE_EXIT="$(create_minion_file "---
@@ -475,89 +492,43 @@ skills:
 ---
 Analyze the repository for vulnerabilities")"
 
-run_and_check \
-  "comprehensive: provider" \
-  0 \
-  "--provider anthropic" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
+# Single run, assert all expected substrings from one captured output
+check_comprehensive_all_fields() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --file "$MINFILE_ALL" 2>/dev/null)"
+  local rc=$?
+  set -e
 
-run_and_check \
-  "comprehensive: model" \
-  0 \
-  "--model claude-3-opus" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
+  [ "$rc" = "0" ] || { echo "        exit: expected=0 actual=$rc"; return 1; }
 
-run_and_check \
-  "comprehensive: thinking" \
-  0 \
-  "--thinking extended" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
+  local all_pass=true
+  local patterns=(
+    "--provider anthropic"
+    "--model claude-3-opus"
+    "--thinking extended"
+    "--tools bash,read,write"
+    "--max-turns 10"
+    "--append-system-prompt You are a security expert"
+    "--no-tools"
+    "--no-session"
+    "--stream"
+    "-e github-mcp -e jira-mcp"
+    "--skill code-review"
+    "Analyze the repository for vulnerabilities"
+  )
 
-run_and_check \
-  "comprehensive: tools" \
-  0 \
-  "--tools bash,read,write" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
+  for pat in "${patterns[@]}"; do
+    if ! echo "$stdout" | grep -qF -- "$pat"; then
+      echo "        stdout missing: '$pat'"
+      echo "        stdout was: '$stdout'"
+      all_pass=false
+    fi
+  done
 
-run_and_check \
-  "comprehensive: max-turns" \
-  0 \
-  "--max-turns 10" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: append-system-prompt" \
-  0 \
-  "--append-system-prompt You are a security expert" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: no-tools" \
-  0 \
-  "--no-tools" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: no-session" \
-  0 \
-  "--no-session" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: stream" \
-  0 \
-  "--stream" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: extensions" \
-  0 \
-  "-e github-mcp -e jira-mcp" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: skills" \
-  0 \
-  "--skill code-review" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
-
-run_and_check \
-  "comprehensive: body as prompt" \
-  0 \
-  "Analyze the repository for vulnerabilities" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_ALL"
+  $all_pass
+}
+check "comprehensive: all field types in single run" check_comprehensive_all_fields
 
 # ============================================================
 # Phase 7: Edge cases
