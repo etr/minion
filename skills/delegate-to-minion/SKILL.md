@@ -80,13 +80,97 @@ Then stop. Do not proceed to execution.
 **If all three parameters are present**, proceed directly to **Step 7** (Execute via Pi CLI).
 
 ### 4. Minion File Resolution (Mode 2)
-<!-- TODO (TASK-005): Implement minion file resolution -->
-Resolve the minion file by checking in order:
-1. Argument as absolute path (if starts with `/`)
-2. `./.claude/minions/<name>.md` (project-local)
-3. `~/.claude/minions/<name>.md` (user-global)
 
-If not found at any path: report the paths searched and fail with actionable error.
+Resolve the minion name or path to an absolute file path on disk. The minion name is the value passed after "Minion file mode" in the conversation context.
+
+**Security:** To prevent shell injection, assign the minion name to a shell variable using single-quoted assignment. This prevents `$(...)` command substitution, backtick expansion, and variable expansion:
+
+```bash
+MINION_NAME='<name>'
+```
+
+If the value contains single quotes, replace each `'` with `'\''` before embedding.
+
+#### Case A: Absolute path (starts with `/`)
+
+If the minion name starts with `/`, treat it as an absolute path. Check whether the file exists using `test -f`:
+
+```bash
+test -f "$MINION_NAME"
+```
+
+**If the file exists:** the resolved absolute path is `$MINION_NAME`. Proceed to **Step 5**.
+
+**If the file does not exist:** report the error and abort:
+
+> **Minion file not found.** Searched the following location:
+>
+> - `<absolute-path>`
+>
+> The file could not be found at the specified path. Please check that the path is correct, or create a minion file at that location with the required frontmatter (`provider` and `model` fields).
+
+Then stop. Do not proceed to any further steps.
+
+#### Case B: Name resolution (does not start with `/`)
+
+If the minion name does not start with `/`, first validate that the name contains only safe characters to prevent path traversal (CWE-22). The name must match only alphanumeric characters, hyphens, and underscores:
+
+```bash
+echo "$MINION_NAME" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "ERROR: invalid minion name"; exit 1; }
+```
+
+If validation fails, report the error and abort:
+
+> **Invalid minion name.** The name `<name>` contains characters that are not allowed. Minion names may only contain letters, numbers, hyphens, and underscores.
+
+Then stop. Do not proceed to any further steps.
+
+If validation passes, resolve the name by checking the following locations in order:
+
+1. **Project-local:** `./.claude/minions/<name>.md`
+2. **User-global:** `$HOME/.claude/minions/<name>.md`
+
+Run a single bash block to perform the lookup. Use `test -f` for each candidate path and emit a structured result:
+
+```bash
+MINION_NAME='<name>'
+echo "$MINION_NAME" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "ERROR: invalid minion name"; exit 1; }
+
+if test -f "./.claude/minions/${MINION_NAME}.md"; then
+  echo "FOUND:$(pwd)/.claude/minions/${MINION_NAME}.md"
+elif test -f "$HOME/.claude/minions/${MINION_NAME}.md"; then
+  echo "FOUND:$HOME/.claude/minions/${MINION_NAME}.md"
+else
+  echo "NOT_FOUND"
+  echo "SEARCHED:./.claude/minions/${MINION_NAME}.md"
+  echo "SEARCHED:$HOME/.claude/minions/${MINION_NAME}.md"
+fi
+```
+
+**If `FOUND:<path>` is returned:** the resolved absolute path is the value after `FOUND:`. Proceed to **Step 5**.
+
+**If `NOT_FOUND` is returned:** report all checked locations and abort with an actionable error:
+
+> **Minion file not found.** No minion named `<name>` was found. Searched the following locations:
+>
+> - `./.claude/minions/<name>.md` (project-local)
+> - `~/.claude/minions/<name>.md` (user-global)
+>
+> To create this minion, add a file at one of the locations above with YAML frontmatter containing at least `provider` and `model` fields. For example:
+>
+> ```yaml
+> ---
+> provider: openai
+> model: gpt-4
+> ---
+> Your minion's system prompt here.
+> ```
+
+Then stop. Do not proceed to any further steps.
+
+#### Resolved path
+
+After successful resolution, the resolved absolute path is available for subsequent steps. Pass this resolved absolute path to **Step 5** (Parse Minion File Frontmatter) and ultimately to `lib/minion-run.sh`.
 
 ### 5. Parse Minion File Frontmatter
 <!-- TODO (TASK-006): Implement frontmatter parsing -->
