@@ -25,7 +25,7 @@
 | TASK-003 | minion-run.sh with inline mode | M2 | M | Complete | TASK-001 |
 | TASK-004 | Skill inline invocation flow | M2 | M | Complete | TASK-002, TASK-003 |
 | TASK-005 | Minion file resolution | M3 | S | In Progress | TASK-004 |
-| TASK-006 | Frontmatter parsing and Pi flag mapping | M3 | M | Not Started | TASK-003 |
+| TASK-006 | Frontmatter parsing and Pi flag mapping | M3 | M | In Progress | TASK-003 |
 | TASK-007 | Prompt composition and minion-file mode end-to-end | M3 | M | Not Started | TASK-005, TASK-006 |
 | TASK-008 | Example minion files and error UX | M4 | M | Not Started | TASK-007 |
 | TASK-009 | README and marketplace distribution | M4 | S | Not Started | TASK-008 |

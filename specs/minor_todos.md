@@ -4,6 +4,30 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-03 | TASK-006: Frontmatter parsing and Pi flag mapping
+
+1. [ ] `major` **code-quality** | `lib/minion-run.sh:81` | code-elegance: parse_field passes field name directly into sed regex without escaping; field names are hardcoded literals so safe today, but function interface doesn't enforce that -- Escape metacharacters or document constraint
+2. [ ] `major` **code-simplifier** | `lib/minion-run.sh:88` | code-structure: validation block (missing required fields) duplicated between file and inline modes -- Extract shared `require_vars` or `die_missing` helper
+3. [ ] `major` **code-simplifier** | `lib/minion-run.sh:133` | code-structure: list-flag loop pattern repeated for extensions and skills, differing only in field name and flag -- Extract `append_list_flags <field> <flag>` helper
+4. [ ] `major` **code-quality** | `test/test-frontmatter-parsing.sh:1` | code-elegance: mock Pi setup and run_and_check helper duplicated verbatim across test-frontmatter-parsing.sh and test-minion-run.sh -- Extract into shared test/helpers.sh
+5. [ ] `minor` **security** | `lib/minion-run.sh:84` | input-validation: parsed frontmatter field values passed directly to Pi CLI cmd array without sanitization; a value like '--inject-flag' would be forwarded verbatim -- Validate structured fields (max-turns numeric, thinking/tools allowlist)
+6. [ ] `minor` **security** | `lib/minion-run.sh:66` | input-validation: FILE_PATH not restricted to any directory or file extension -- Consider .md extension check or document that callers scope paths
+7. [ ] `minor` **security** | `lib/minion-run.sh:14` | error-handling: set -uo pipefail without -e; subshell failures in parse_field/parse_list could silently leave vars empty -- Add set -e or explicit exit checks
+8. [ ] `minor` **architecture** | `lib/minion-run.sh:81` | pattern-violation: parse_field sed doesn't strip trailing content after value; 'provider: openai # note' would parse as 'openai # note' -- Add trailing comment strip or document that inline YAML comments are unsupported
+9. [ ] `minor` **performance** | `lib/minion-run.sh:80` | missing-caching: parse_field spawns a subshell per call (9 times); all fields could be extracted in a single awk pass -- Replace 9 sed calls with one awk pass
+10. [ ] `minor` **performance** | `lib/minion-run.sh:72` | memory-allocation: file read by 2 awk processes + 1 sed for body trim; could be single awk pass -- Combine into one awk
+11. [ ] `minor` **code-simplifier** | `lib/minion-run.sh:80` | code-structure: parse_field and parse_list implicitly depend on outer $FRONTMATTER variable -- Pass $FRONTMATTER as explicit argument
+12. [ ] `minor` **code-simplifier** | `lib/minion-run.sh:109` | code-readability: parse_list defined far from parse_field, separated by variable assignments -- Move parse_list immediately after parse_field
+13. [ ] `minor` **test-quality** | `test/test-frontmatter-parsing.sh:141` | missing-test: mutual exclusivity test asserts only exit code, not stderr error message -- Add stderr_pattern for error text
+14. [ ] `minor` **test-quality** | `test/test-frontmatter-parsing.sh:149` | missing-test: file-not-found test asserts only exit code, not stderr message -- Add stderr_pattern "file not found"
+15. [ ] `minor` **test-quality** | `test/test-frontmatter-parsing.sh:574` | missing-test: body containing a --- line (markdown HR) untested; awk delimiter count may truncate body -- Add test with --- in body content
+16. [ ] `minor` **test-quality** | `test/test-frontmatter-parsing.sh:224` | missing-test: leading-blank-line trim behavior (line 77 of minion-run.sh) has no dedicated test -- Add test with blank line after closing ---
+17. [ ] `minor` **code-simplifier** | `test/test-frontmatter-parsing.sh:598` | needless-repetition: check_absent_booleans not using consolidated check_flag_absent helper -- Replace with three check_flag_absent calls or a loop
+18. [ ] `minor` **code-quality** | `test/test-frontmatter-parsing.sh:567` | code-readability: check_no_prompt_arg and check_absent_booleans are one-off inline functions that could be expressed as run_and_check calls -- Inline or simplify
+19. [ ] `minor` **spec-alignment** | `lib/minion-run.sh:93` | specification-gap: architecture section 4.3 says missing-field message goes to stdout; implementation now correctly uses stderr -- Update architecture doc to reflect stderr convention
+
+---
+
 ## Run: 2026-04-03 | TASK-005: Minion file resolution
 
 1. [ ] `major` **code-quality, code-simplifier** | `test/test-minion-file-resolution.sh:75` | multi-assert: 'error reports searched locations' bundles 4 assertions in one check; failure doesn't indicate which failed -- Split into separate single-assertion checks

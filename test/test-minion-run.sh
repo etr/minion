@@ -147,42 +147,42 @@ echo "-- Missing parameter validation --"
 run_and_check \
   "missing model exits non-zero with 'missing' message containing 'model'" \
   1 \
-  "model" \
   "" \
+  "model" \
   -- "$MINION_RUN" --provider openai --prompt hello
 
 run_and_check \
   "missing provider exits non-zero with 'missing' message containing 'provider'" \
   1 \
-  "provider" \
   "" \
+  "provider" \
   -- "$MINION_RUN" --model gpt-4 --prompt hello
 
 run_and_check \
   "missing prompt exits non-zero with 'missing' message containing 'prompt'" \
   1 \
-  "prompt" \
   "" \
+  "prompt" \
   -- "$MINION_RUN" --provider openai --model gpt-4
 
 run_and_check \
   "no arguments exits non-zero with all three field names" \
   1 \
-  "missing:" \
   "" \
+  "missing:" \
   -- "$MINION_RUN"
 
-# Verify all three fields appear when no args given
+# Verify all three fields appear when no args given (on stderr)
 check_no_args_all_fields() {
-  local stdout
+  local stderr
   set +e
-  stdout="$("$MINION_RUN" 2>/dev/null)"
+  stderr="$("$MINION_RUN" 2>&1 1>/dev/null)"
   local exit_code=$?
   set -e
   [ "$exit_code" != "0" ] || return 1
-  echo "$stdout" | grep -qF "provider" || return 1
-  echo "$stdout" | grep -qF "model" || return 1
-  echo "$stdout" | grep -qF "prompt" || return 1
+  echo "$stderr" | grep -qF "provider" || return 1
+  echo "$stderr" | grep -qF "model" || return 1
+  echo "$stderr" | grep -qF "prompt" || return 1
 }
 check "no arguments output contains provider, model, and prompt" check_no_args_all_fields
 
