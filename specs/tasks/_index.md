@@ -10,8 +10,8 @@
 | Milestone | Name | Tasks | Status |
 |-----------|------|-------|--------|
 | M1 | Plugin Scaffold & Pi Detection | TASK-001, TASK-002 | Complete |
-| M2 | Inline Invocation | TASK-003, TASK-004 | In Progress |
-| M3 | Minion File Support | TASK-005, TASK-006, TASK-007 | In Progress |
+| M2 | Inline Invocation | TASK-003, TASK-004 | Complete |
+| M3 | Minion File Support | TASK-005, TASK-006, TASK-007 | Complete |
 | M4 | Polish & Distribution | TASK-008, TASK-009 | Not Started |
 
 ---
@@ -26,7 +26,7 @@
 | TASK-004 | Skill inline invocation flow | M2 | M | Complete | TASK-002, TASK-003 |
 | TASK-005 | Minion file resolution | M3 | S | Complete | TASK-004 |
 | TASK-006 | Frontmatter parsing and Pi flag mapping | M3 | M | Complete | TASK-003 |
-| TASK-007 | Prompt composition and minion-file mode end-to-end | M3 | M | In Progress | TASK-005, TASK-006 |
+| TASK-007 | Prompt composition and minion-file mode end-to-end | M3 | M | Complete | TASK-005, TASK-006 |
 | TASK-008 | Example minion files and error UX | M4 | M | Not Started | TASK-007 |
 | TASK-009 | README and marketplace distribution | M4 | S | Not Started | TASK-008 |
 
