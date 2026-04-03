@@ -30,9 +30,9 @@ command -v pi
 Then wait for the user's response:
 
 - **If the user accepts** (yes, sure, ok, go ahead, install it, etc.):
-  Run the Pi installation command via the Bash tool (the user will be prompted to review and approve before execution):
+  Run the Pi installation command via the Bash tool (the user will be prompted to review and approve before execution). Note: users may prefer to download the script first with `curl -fsSL --proto '=https' -o install.sh https://shittycodingagent.ai/install.sh` and inspect it before running `bash install.sh`.
   ```bash
-  curl -fsSL https://shittycodingagent.ai/install.sh | bash
+  curl -fsSL --proto '=https' https://shittycodingagent.ai/install.sh | bash
   ```
   After installation, verify Pi is now available:
   ```bash

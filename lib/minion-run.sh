@@ -89,6 +89,10 @@ if [ -n "$FILE_PATH" ]; then
 
   # Parse string fields from frontmatter
   parse_field() {
+    # Validate field name to prevent sed regex injection (CWE-1333)
+    if ! echo "$1" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+      return 1
+    fi
     echo "$FRONTMATTER" | sed -n "s/^${1}: *//p"
   }
 

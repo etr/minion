@@ -8,12 +8,12 @@
 Compose the final prompt from minion body + caller input and wire the complete minion-file invocation flow.
 
 **Action Items:**
-- [ ] In `minion-run.sh`, add `--extra-input` argument for caller-provided text
-- [ ] Compose prompt: base prompt (markdown body) + "\n\n" + extra input when both present
-- [ ] Handle no-extra-input case: use base prompt as-is
-- [ ] Update SKILL.md to detect minion-file mode (first arg is not `--provider`)
-- [ ] Wire full flow: resolve file (TASK-005) → call `minion-run.sh --file <path> --extra-input "..."` → return output
-- [ ] Update COMMAND.md to document both invocation modes with examples
+- [x] In `minion-run.sh`, add `--extra-input` argument for caller-provided text
+- [x] Compose prompt: base prompt (markdown body) + "\n\n" + extra input when both present
+- [x] Handle no-extra-input case: use base prompt as-is
+- [x] Update SKILL.md to detect minion-file mode (first arg is not `--provider`)
+- [x] Wire full flow: resolve file (TASK-005) → call `minion-run.sh --file <path> --extra-input "..."` → return output
+- [x] Update COMMAND.md to document both invocation modes with examples
 
 **Dependencies:**
 - Blocked by: TASK-005, TASK-006
@@ -28,4 +28,4 @@ Compose the final prompt from minion body + caller input and wire the complete m
 **Related Requirements:** PRD-MIN-REQ-011, PRD-MIN-REQ-012, PRD-MIN-REQ-014
 **Related Decisions:** DR-002, DR-004
 
-**Status:** Not Started
+**Status:** In Progress

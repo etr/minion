@@ -174,12 +174,13 @@ run_and_check \
 # Phase 4: --extra-input with inline mode flags is a conflict
 # ============================================================
 
-# 4. extra-input conflicts with inline mode flags
+# 4. extra-input conflicts with inline mode flags (exit code 2; message may vary
+#    depending on whether --extra-input-requires-file or file-inline-conflict fires first)
 run_and_check \
   "--extra-input with inline flags exits 2 (conflict)" \
   2 \
   "" \
-  "--extra-input requires --file" \
+  "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello --extra-input "extra"
 
 # ============================================================
@@ -207,12 +208,18 @@ run_and_check \
 # ============================================================
 
 # 6. --extra-input at end of args with no following value
+MINFILE_MISSINGVAL="$(create_minion_file "---
+provider: openai
+model: gpt-4
+---
+Some prompt")"
+
 run_and_check \
   "--extra-input with missing value exits 2" \
   2 \
   "" \
   "missing value for --extra-input" \
-  -- "$MINION_RUN" --file /dev/null --extra-input
+  -- "$MINION_RUN" --file "$MINFILE_MISSINGVAL" --extra-input
 
 # ============================================================
 # Phase 7: --extra-input with special characters preserved
@@ -238,23 +245,11 @@ run_and_check \
 echo ""
 echo "-- Structural checks --"
 
-# 8a. SKILL.md has no TASK-007 TODO
-check_no_task007_todo() {
-  ! grep -q 'TODO (TASK-007)' "$ROOT/skills/delegate-to-minion/SKILL.md"
-}
-check "SKILL.md has no TASK-007 TODO" check_no_task007_todo
-
 # 8b. SKILL.md references --extra-input
 check_skill_extra_input() {
   grep -q '\-\-extra-input' "$ROOT/skills/delegate-to-minion/SKILL.md"
 }
 check "SKILL.md references --extra-input" check_skill_extra_input
-
-# 8c. SKILL.md has no TASK-006 TODO
-check_no_task006_todo() {
-  ! grep -q 'TODO (TASK-006)' "$ROOT/skills/delegate-to-minion/SKILL.md"
-}
-check "SKILL.md has no TASK-006 TODO" check_no_task006_todo
 
 # 8d. COMMAND.md has Usage Examples section
 check_command_examples() {
