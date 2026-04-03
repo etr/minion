@@ -173,18 +173,21 @@ Then stop. Do not proceed to any further steps.
 After successful resolution, the resolved absolute path is available for subsequent steps. Pass this resolved absolute path to **Step 5** (Parse Minion File Frontmatter) and ultimately to `lib/minion-run.sh`.
 
 ### 5. Parse Minion File Frontmatter
-<!-- TODO (TASK-006): Implement frontmatter parsing -->
-Parse YAML frontmatter for Pi CLI parameters:
-- Required: `provider`, `model`
-- Optional: `thinking`, `tools`, `no-tools`, `no-session`, `extensions` (list), `skills` (list), `max-turns`, `append-system-prompt`, `stream`
 
-If required fields missing: report which fields and abort.
+Frontmatter parsing is handled automatically by `lib/minion-run.sh --file`. The script extracts YAML frontmatter from the minion file and maps fields to Pi CLI flags:
+- Required: `provider`, `model` — script exits 1 with an error listing missing fields if absent
+- Optional string fields: `thinking`, `tools`, `max-turns`, `append-system-prompt`
+- Optional boolean fields: `no-tools`, `no-session`, `stream` — emitted as bare `--flag` when `true`
+- Optional list fields: `extensions` (mapped to `-e` per entry), `skills` (mapped to `--skill` per entry)
+
+The markdown body after the second `---` delimiter is used as the base prompt.
 
 ### 6. Compose Prompt
-<!-- TODO (TASK-007): Implement prompt composition -->
-Combine the minion's base prompt (markdown body after frontmatter) with any caller-provided extra input:
-- If extra input provided: base prompt + "\n\n" + extra input
-- If no extra input: use base prompt as-is
+
+Prompt composition is handled by the `--extra-input` flag on `lib/minion-run.sh`:
+- If extra input is provided: the script composes `base prompt + "\n\n" + extra input`
+- If no extra input: the base prompt from the minion file body is used as-is
+- An empty `--extra-input ""` is treated the same as omitting the flag
 
 ### 7. Execute via Pi CLI
 
@@ -200,6 +203,29 @@ If this fails, the working directory is not the plugin root. Inform the user tha
 
 **Security:** To prevent shell injection, assign each user-supplied value to a shell variable using single quotes, then pass the variables to the script. Single-quoted assignments prevent `$(...)` command substitution, backtick expansion, and variable expansion. Never interpolate user values directly into double-quoted strings.
 
+#### File Mode Execution
+
+When using minion file mode, pass the resolved absolute path from Step 4 to `minion-run.sh` via `--file`, and any caller-provided extra input via `--extra-input`:
+
+```bash
+MINION_FILE='<resolved_absolute_path>'
+MINION_EXTRA='<extra_input>'
+bash lib/minion-run.sh --file "$MINION_FILE" --extra-input "$MINION_EXTRA"
+```
+
+If there is no extra input from the caller, omit the `--extra-input` flag entirely:
+
+```bash
+MINION_FILE='<resolved_absolute_path>'
+bash lib/minion-run.sh --file "$MINION_FILE"
+```
+
+**Quoting rules:** For `<resolved_absolute_path>`, if the value contains single quotes, replace each `'` with `'\''` before embedding in the single-quoted assignment. The same rule applies to `<extra_input>`.
+
+#### Inline Mode Execution
+
+When using inline mode, pass provider, model, and prompt directly:
+
 ```bash
 MINION_PROVIDER='<provider>'
 MINION_MODEL='<model>'
@@ -211,7 +237,15 @@ bash lib/minion-run.sh --provider "$MINION_PROVIDER" --model "$MINION_MODEL" --p
 
 #### On success (exit code 0):
 
-Present Pi's stdout output to the user. The output is now part of the conversation context and available for Claude to reason about in subsequent turns. Format the response as:
+Present Pi's stdout output to the user. The output is now part of the conversation context and available for Claude to reason about in subsequent turns.
+
+For **file mode**, include the minion name in the attribution:
+
+> **Pi response** (via minion `<minion_name>`):
+>
+> <Pi's stdout output here>
+
+For **inline mode**, show the provider and model:
 
 > **Pi response** (via `<provider>/<model>`):
 >

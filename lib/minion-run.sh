@@ -4,7 +4,7 @@
 #
 # Usage:
 #   Inline mode: minion-run.sh --provider <val> --model <val> --prompt <val>
-#   File mode:   minion-run.sh --file <path>
+#   File mode:   minion-run.sh --file <path> [--extra-input <text>]
 #
 # Exit codes:
 #   0   — Pi succeeded
@@ -17,6 +17,7 @@ PROVIDER=""
 MODEL=""
 PROMPT=""
 FILE_PATH=""
+EXTRA_INPUT=""
 
 # --- Argument parsing ---
 while [ $# -gt 0 ]; do
@@ -41,6 +42,11 @@ while [ $# -gt 0 ]; do
       FILE_PATH="$2"
       shift 2
       ;;
+    --extra-input)
+      [ $# -ge 2 ] || { echo "missing value for --extra-input" >&2; exit 2; }
+      EXTRA_INPUT="$2"
+      shift 2
+      ;;
     -*)
       echo "unknown flag: $1" >&2
       exit 2
@@ -52,9 +58,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# --- Mutual exclusivity check ---
+# --- Mutual exclusivity checks ---
 if [ -n "$FILE_PATH" ] && { [ -n "$PROVIDER" ] || [ -n "$MODEL" ] || [ -n "$PROMPT" ]; }; then
   echo "--file cannot be combined with --provider, --model, or --prompt" >&2
+  exit 2
+fi
+
+if [ -n "$EXTRA_INPUT" ] && [ -z "$FILE_PATH" ]; then
+  echo "--extra-input requires --file" >&2
   exit 2
 fi
 
@@ -139,9 +150,20 @@ if [ -n "$FILE_PATH" ]; then
     [ -n "$item" ] && cmd+=(--skill "$item")
   done < <(parse_list skills)
 
-  # Append body as prompt if non-empty
+  # Compose prompt: body + extra input (separated by double newline)
+  COMPOSED=""
   if [ -n "$BODY" ]; then
-    cmd+=("$BODY")
+    COMPOSED="$BODY"
+  fi
+  if [ -n "$EXTRA_INPUT" ]; then
+    if [ -n "$COMPOSED" ]; then
+      COMPOSED="${COMPOSED}"$'\n\n'"${EXTRA_INPUT}"
+    else
+      COMPOSED="$EXTRA_INPUT"
+    fi
+  fi
+  if [ -n "$COMPOSED" ]; then
+    cmd+=("$COMPOSED")
   fi
 
   # Execute

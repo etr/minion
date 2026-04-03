@@ -51,3 +51,35 @@ When you invoke the skill, state the parsed results explicitly so the skill can 
 - **Minion file mode:** "Minion file mode. Minion name: `<value>`. Extra input: `<value or none>`."
 
 The skill handles all execution logic from here: Pi availability checks, validation, error messaging, and Pi invocation.
+
+## Usage Examples
+
+### Inline Mode
+
+Specify provider, model, and prompt directly on the command line:
+
+```
+/minion --provider openai --model gpt-4 "Explain the builder pattern in Go"
+```
+
+```
+/minion --provider anthropic --model claude-3-opus "Review this PR for security issues"
+```
+
+### Minion File Mode
+
+Use a stored minion file by name. The minion file contains the provider, model, and base prompt:
+
+```
+/minion security-reviewer
+```
+
+Add extra input to supplement the minion's base prompt:
+
+```
+/minion security-reviewer "review auth.py for injection vulnerabilities"
+```
+
+```
+/minion code-reviewer "focus on error handling in lib/parser.sh"
+```
