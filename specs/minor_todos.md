@@ -4,6 +4,28 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-03 | TASK-007: Prompt composition and minion-file mode end-to-end
+
+1. [ ] `minor` **security** | `lib/minion-run.sh:83` | input-validation: FILE_PATH passed to awk without `--` end-of-options marker; paths starting with `-` could be misinterpreted as awk flags -- Use `awk '...' -- "$FILE_PATH"`
+2. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:258` | sensitive-data: Pi stderr presented verbatim on failure may contain credential hints or internal endpoint details -- Add caveat to redact or warn about sharing error output
+3. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:248` | implementation-coupling: Phase 8 structural checks grep for literal strings in SKILL.md/COMMAND.md; fragile to wording changes -- Consider replacing with behavioral assertions or documenting as lint-style checks
+4. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:274` | missing-test: No test for extra-input containing embedded newlines or the separator sequence `\n\n` -- Add test with multi-line extra-input
+5. [ ] `minor` **architecture** | `skills/delegate-to-minion/SKILL.md:197` | component-boundary: `test -f lib/minion-run.sh` guard is CWD-dependent; fragile deployment sanity check -- Document as deployment guard or move to script
+6. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:119` | test-coverage: Composition test doesn't assert exact double-newline separator between body and extra-input -- Add pattern anchoring both parts with separator
+7. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:185` | test-coverage: Empty extra-input test doesn't verify no trailing whitespace/newlines appended -- Add negative assertion for trailing separator
+8. [ ] `minor` **code-quality** | `lib/minion-run.sh:154` | code-readability: COMPOSED variable name is generic; FINAL_PROMPT or PROMPT_ARG better communicates intent -- Rename throughout file-mode block
+9. [ ] `minor` **code-quality** | `skills/delegate-to-minion/SKILL.md:210` | code-readability: MINION_EXTRA assignment in file-mode snippet missing single-quote wrapper shown for other variables -- Add single quotes for consistency
+10. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:113` | algorithmic-complexity: create_minion_file uses $RANDOM for filenames; mktemp would guarantee uniqueness -- Use mktemp instead
+11. [ ] `minor` **code-simplifier** | `lib/minion-run.sh:153` | code-structure: Redundant conditional in prompt composition; `COMPOSED="$BODY"` unconditionally is equivalent -- Simplify to flat assignment
+12. [ ] `minor` **spec-alignment** | `test/test-prompt-composition.sh:240` | acceptance-criteria: PRD-MIN-REQ-014 (Pi output to context) verified only via structural grep, not behavioral test -- Inherent limitation of skill testing; documented
+13. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:120` | missing-test: No test for empty body + non-empty extra-input composition path -- Add test with frontmatter-only minion file and --extra-input
+14. [ ] `minor` **test-quality** | `test/test-frontmatter-parsing.sh:141` | missing-test: --file + --model mutual exclusivity untested (only --file + --provider covered) -- Add symmetrical test case
+15. [ ] `minor` **test-quality** | `test/test-prompt-composition.sh:174` | test-coverage: Phase 4 test asserts only exit code 2, no stderr content -- Add minimal stderr assertion (e.g., non-empty)
+16. [ ] `minor` **code-simplifier** | `test/test-prompt-composition.sh:249` | naming: One-off function definitions for structural checks could be inline check calls -- Inline grep into check() calls directly
+17. [ ] `minor` **spec-alignment** | `lib/minion-run.sh:159` | specification-gap: Empty body + no extra input edge case unspecified in PRD; current behavior (omit prompt arg) is reasonable -- Document if PRD updated
+
+---
+
 ## Run: 2026-04-03 | TASK-006: Frontmatter parsing and Pi flag mapping
 
 1. [ ] `major` **code-quality** | `lib/minion-run.sh:81` | code-elegance: parse_field passes field name directly into sed regex without escaping; field names are hardcoded literals so safe today, but function interface doesn't enforce that -- Escape metacharacters or document constraint
