@@ -262,6 +262,52 @@ Surface the error clearly to the user with the exit code and any stderr output. 
 > <stderr output, if any>
 
 Then provide guidance based on the exit code:
-- **Exit code 1** (validation error from minion-run.sh): A required parameter was empty after extraction. Report what minion-run.sh said was missing.
+
+- **Exit code 1** (validation error from minion-run.sh): Check the stderr output to determine the specific cause:
+
+  - If stderr contains **"missing:"** — required frontmatter fields are absent. Present a rich error with the field names, the file path, and an example of valid frontmatter:
+
+    > **Missing required fields** in `<file_path>`: `<field list from stderr>`
+    >
+    > The minion file must include `provider:` and `model:` in its YAML frontmatter. Example:
+    >
+    > ```yaml
+    > ---
+    > provider: openai
+    > model: gpt-4
+    > ---
+    > Your prompt here.
+    > ```
+
+  - If stderr contains **"file not found:"** — the specified file does not exist on disk. Present the error with actionable guidance:
+
+    > **File not found:** `<path from stderr>`
+    >
+    > Check that the file path is correct. If using a minion name, ensure the file exists at `.claude/minions/<name>.md` (project-local) or `~/.claude/minions/<name>.md` (user-global).
+
 - **Exit code 2** (unknown flag): An unrecognized flag was passed. Check the parameter values for accidental flag-like content.
 - **Other exit codes**: These come from Pi itself. Suggest the user check their provider credentials, model name, or Pi CLI configuration.
+
+### Using Example Minion Files
+
+The plugin ships with ready-to-use example minion files in the `examples/` directory. To make an example invocable by name, copy it to your minions directory:
+
+**Project-local** (available only in this project):
+```bash
+mkdir -p .claude/minions
+cp examples/security-reviewer.md .claude/minions/
+```
+
+**User-global** (available in all projects):
+```bash
+mkdir -p ~/.claude/minions
+cp examples/code-explainer.md ~/.claude/minions/
+```
+
+After copying, invoke by name:
+- `/minion security-reviewer "Review auth.py for vulnerabilities"`
+- `/minion code-explainer "Explain the retry logic in lib/fetch.ts"`
+
+**Available examples:**
+- `security-reviewer.md` — Reviews code for security vulnerabilities using OWASP Top 10 categories
+- `code-explainer.md` — Explains code in plain language with step-by-step breakdowns

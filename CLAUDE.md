@@ -18,6 +18,9 @@ minion/
 │       └── SKILL.md             # Core execution logic
 ├── lib/
 │   └── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation (TASK-003)
+├── examples/
+│   ├── security-reviewer.md     # Example: code security review minion
+│   └── code-explainer.md        # Example: plain-language code explainer minion
 ├── test/
 │   └── validate-plugin-structure.sh  # Structure validation
 ├── CLAUDE.md                    # This file
@@ -60,3 +63,4 @@ minion/
 - TASK-005: Minion file resolution
 - TASK-006: Frontmatter parsing
 - TASK-007: Prompt composition and execution
+- TASK-008: Example minion files and error UX
