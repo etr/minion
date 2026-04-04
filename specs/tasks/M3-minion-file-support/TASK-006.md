@@ -32,4 +32,4 @@ Parse YAML frontmatter from minion files and map all supported fields to Pi CLI 
 **Related Requirements:** PRD-MIN-REQ-008, PRD-MIN-REQ-009, PRD-MIN-REQ-010, PRD-MIN-REQ-013
 **Related Decisions:** DR-003
 
-**Status:** In Progress
+**Status:** Complete

@@ -29,4 +29,4 @@ Resolve a minion name or path to an actual file on disk using the 3-tier lookup 
 **Related Requirements:** PRD-MIN-REQ-006, PRD-MIN-REQ-007
 **Related Decisions:** DR-002
 
-**Status:** In Progress
+**Status:** Complete
