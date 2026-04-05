@@ -4,6 +4,26 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-04 | TASK-009: README and marketplace distribution
+
+1. [ ] `major` **spec-alignment** | `(external repo)` | action-item: Marketplace README entry, install verification, and `/minion` availability check deferred — minion repo has no GitHub remote yet. Complete when `etr/minion` is published.
+2. [ ] `minor` **security** | `README.md:19` | insecure-design: Pi CLI URL has no integrity verification guidance (checksum/signature) -- Add verification note if Pi publishes checksums
+3. [ ] `minor` **security** | `README.md:108` | sensitive-data: append-system-prompt field docs lack warning about secrets in minion files committed to VCS -- Add note to avoid secrets in frontmatter
+4. [ ] `minor` **security** | `test/test-readme-and-license.sh:10` | input-validation: ROOT variable `cd` missing `&&`; if cd fails, pwd returns wrong directory silently -- Use `cd "$SCRIPT_DIR/.." && pwd`
+5. [ ] `minor` **code-simplifier** | `test/test-readme-and-license.sh:15` | naming: check() discards stderr; failures give no diagnostic output -- Consider verbose flag or stderr capture on failure
+6. [ ] `minor` **code-simplifier** | `test/test-readme-and-license.sh:96` | code-structure: `grep -qw` for common words (stream, tools, model) could false-positive match prose -- Use backtick-delimited pattern `\`field\``
+7. [ ] `minor` **code-quality** | `test/test-readme-and-license.sh:7` | test-coverage: `set -uo pipefail` missing `-e`; intentional but undocumented -- Add comment explaining why
+8. [ ] `minor` **code-quality** | `README.md:19` | readability: Pi CLI URL appears twice in Prerequisites section (link + bold URL) -- Remove duplicate
+9. [ ] `minor` **code-quality** | `README.md:99` | readability: Required=Yes fields not visually distinct in frontmatter table -- Bold the Yes entries
+10. [ ] `minor` **architecture** | `README.md:42` | interface-contract: Model name `claude-sonnet-4-20250514` unverified against Pi CLI docs -- Verify or use placeholder
+11. [ ] `minor` **spec-alignment** | `README.md:102` | specification-gap: `tools` field type ambiguity (string vs list) -- Verify against Pi CLI `--tools` signature
+12. [ ] `minor` **test-quality** | `test/test-readme-and-license.sh:134` | missing-test: No check for error behavior documentation (not-found paths) -- Add grep for error UX content
+13. [ ] `minor` **test-quality** | `test/test-readme-and-license.sh:15` | naming-convention: Check descriptions mix question-like and assertion-like styles -- Standardize
+14. [ ] `minor` **test-quality** | `test/test-readme-and-license.sh:87` | excessive-setup: Redundant provider/model re-checks after loop already verified them -- Remove or document intent
+15. [ ] `minor` **code-simplifier** | `test/test-readme-and-license.sh:47` | code-structure: bash -c wrapper for line-count inconsistent with direct check() style -- Extract to variable first
+
+---
+
 ## Run: 2026-04-04 | TASK-008: Example minion files and error UX
 
 1. [ ] `major` **code-quality** | `test/test-examples-and-errors.sh:298` | test-coverage: --extra-input happy path (valid file + extra input, prompt composition verified) not tested -- Add capture_scenario with --file + --extra-input and assert extra text in mock Pi output
