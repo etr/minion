@@ -44,18 +44,9 @@ echo "=== Phase 2: README existence ==="
 # ================================================================
 
 check "README.md exists" test -f "$README"
-check "README.md non-empty (100+ lines)" python3 -c "
-lines = open('$README').readlines()
-assert len(lines) >= 100, f'only {len(lines)} lines'
-"
-check "README starts with '# '" python3 -c "
-line = open('$README').readline()
-assert line.startswith('# '), f'first line: {line!r}'
-"
-check "title contains 'minion'" python3 -c "
-line = open('$README').readline().lower()
-assert 'minion' in line, f'title: {line!r}'
-"
+check "README.md non-empty (100+ lines)" bash -c "[ \$(wc -l < '$README') -ge 100 ]"
+check "README starts with '# '" grep -qm1 '^# ' "$README"
+check "title contains 'minion'" bash -c "head -1 '$README' | grep -qi 'minion'"
 
 # ================================================================
 echo ""
@@ -82,7 +73,7 @@ echo ""
 echo "=== Phase 5: Minion-file mode content ==="
 # ================================================================
 
-check "references file mode" grep -qiE "minion.file|file.mode" "$README"
+check "references file mode" grep -qiE "minion[- ]file|file[- ]mode" "$README"
 check "references .claude/minions/ path" grep -q "\.claude/minions/" "$README"
 check "example like /minion security-reviewer or /minion <name>" grep -qE '/minion (security-reviewer|<[^>]+>)' "$README"
 check "file resolution order mentioned" grep -qi "resolution" "$README"
@@ -98,14 +89,9 @@ for field in provider model thinking tools no-tools no-session extensions skills
 done
 
 check "table structure (pipe chars)" grep -q '|' "$README"
-check "'required' appears near provider/model" python3 -c "
-content = open('$README').read().lower()
-# provider and model rows should have 'required' somewhere nearby
-# check that the word 'required' exists and that provider/model are in the table
-assert 'required' in content, 'no required keyword'
-assert '| provider' in content or '| \`provider\`' in content, 'provider not in table'
-assert '| model' in content or '| \`model\`' in content, 'model not in table'
-"
+check "'required' keyword present in table" grep -qi "required" "$README"
+check "'provider' row present in frontmatter table" grep -qiE '\|\s*`?provider`?' "$README"
+check "'model' row present in frontmatter table" grep -qiE '\|\s*`?model`?' "$README"
 
 # ================================================================
 echo ""
