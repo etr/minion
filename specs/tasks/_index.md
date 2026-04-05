@@ -28,7 +28,7 @@
 | TASK-006 | Frontmatter parsing and Pi flag mapping | M3 | M | Complete | TASK-003 |
 | TASK-007 | Prompt composition and minion-file mode end-to-end | M3 | M | Complete | TASK-005, TASK-006 |
 | TASK-008 | Example minion files and error UX | M4 | M | Not Started | TASK-007 |
-| TASK-009 | README and marketplace distribution | M4 | S | In Progress | TASK-008 |
+| TASK-009 | README and marketplace distribution | M4 | S | Complete | TASK-008 |
 
 ---
 
