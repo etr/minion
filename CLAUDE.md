@@ -22,8 +22,11 @@ minion/
 │   ├── security-reviewer.md     # Example: code security review minion
 │   └── code-explainer.md        # Example: plain-language code explainer minion
 ├── test/
-│   └── validate-plugin-structure.sh  # Structure validation
+│   ├── validate-plugin-structure.sh  # Structure validation
+│   └── test-readme-and-license.sh   # README and LICENSE validation
 ├── CLAUDE.md                    # This file
+├── README.md                    # User-facing documentation
+├── LICENSE                      # MIT License
 └── specs/                       # Product specs, architecture, task definitions
 ```
 
@@ -64,3 +67,4 @@ minion/
 - TASK-006: Frontmatter parsing
 - TASK-007: Prompt composition and execution
 - TASK-008: Example minion files and error UX
+- TASK-009: README and marketplace distribution
