@@ -4,6 +4,25 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-04 | TASK-008: Example minion files and error UX
+
+1. [ ] `major` **code-quality** | `test/test-examples-and-errors.sh:298` | test-coverage: --extra-input happy path (valid file + extra input, prompt composition verified) not tested -- Add capture_scenario with --file + --extra-input and assert extra text in mock Pi output
+2. [ ] `major` **code-simplifier** | `test/test-examples-and-errors.sh:152` | code-structure: Phase 1 runs eight separate Python one-liners that each re-open and re-split the same example files; consolidate into two check calls (one per file) -- Create check_example_frontmatter helper or single Python block per file
+3. [ ] `minor` **security** | `test/test-examples-and-errors.sh:118` | injection: check_skill_section Python interpolation fragile for assertion values containing single quotes -- Pass assertion via environment variable
+4. [ ] `minor` **security** | `skills/delegate-to-minion/SKILL.md:33` | sensitive-data: curl-pipe-bash install pattern preserved without integrity check (CWE-494, pre-existing) -- Reorder so inspect-first is recommended path
+5. [ ] `minor` **code-quality** | `examples/code-explainer.md:1` | code-readability: model: gpt-4 is a legacy alias; gpt-4o is current default -- Update or add comment explaining intentional choice
+6. [ ] `minor` **code-quality** | `skills/delegate-to-minion/SKILL.md:293` | code-elegance: Copy instructions show different example files per scope (security-reviewer for local, code-explainer for global) -- Use same file name for both or add note
+7. [ ] `minor` **code-simplifier** | `test/test-examples-and-errors.sh:257` | naming: MINFILE_NOBOTH unclear; rename to MINFILE_NOFIELDS or MINFILE_MISSING_PROVIDER_AND_MODEL -- Rename for clarity
+8. [ ] `minor` **code-simplifier** | `test/test-examples-and-errors.sh:50` | code-structure: actual_stdout/stderr/exit declared at top level far from capture_scenario -- Move declarations near capture_scenario or add comment
+9. [ ] `minor` **code-simplifier** | `test/test-examples-and-errors.sh:99` | code-structure: Phase 1 Python snippets each re-open and re-split same file; could factor into helper -- Create check_example_frontmatter-style helper
+10. [ ] `minor` **housekeeper** | `specs/tasks/_index.md:15` | task-status: M4 milestone summary row shows 'Not Started' but TASK-008 is 'In Progress' -- Update to 'In Progress'
+11. [ ] `minor` **housekeeper** | `CLAUDE.md:53` | documentation-stale: Development Workflow only mentions validate-plugin-structure.sh; test-examples-and-errors.sh not listed -- Add new test file to workflow docs
+12. [ ] `minor` **architecture** | `specs/architecture.md:193` | pattern-violation: Plugin structure tree omits test/ directory (pre-existing) -- Add test/ with all test files
+13. [ ] `minor` **spec-alignment** | `test/test-examples-and-errors.sh` | acceptance-criteria: Install-declined error path (PRD-MIN-REQ-003) not testable via bash; SKILL.md section is correct -- Informational; structurally untestable
+14. [ ] `minor` **performance** | `test/test-examples-and-errors.sh:279` | missing-caching: Several Python subprocess checks could be combined per scenario -- Consolidate per-scenario assertions
+
+---
+
 ## Run: 2026-04-03 | TASK-007: Prompt composition and minion-file mode end-to-end
 
 1. [ ] `minor` **security** | `lib/minion-run.sh:83` | input-validation: FILE_PATH passed to awk without `--` end-of-options marker; paths starting with `-` could be misinterpreted as awk flags -- Use `awk '...' -- "$FILE_PATH"`
