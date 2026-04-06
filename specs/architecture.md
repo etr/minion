@@ -50,13 +50,14 @@ User
   +-- auto mode (every prompt) ──────────────────────────────┤
        |                                                     |
        v                                                     v
-hooks/auto-minion.md                           /minion command (COMMAND.md)
-  |  intercepts prompts when .auto-enabled        |  parses arguments
-  |  marker exists                                |  (inline / minion-file / auto subcommand)
+hooks/hooks.json (UserPromptSubmit)             /minion command (COMMAND.md)
+  |  shell hook runs auto-minion-hook.sh          |  parses arguments
+  |  when .auto-enabled marker exists             |  (inline / minion-file / auto subcommand)
   v                                               v
-auto-minion skill (SKILL.md)          delegate-to-minion skill (SKILL.md)
-  |  on/off/status, dispatch UX         |  UX, error handling, Pi install flow
-  v                                     v
+lib/auto-minion-hook.sh               delegate-to-minion skill (SKILL.md)
+  |  classify + dispatch in bash          |  UX, error handling, Pi install flow
+  |  (claude -p for inherit dispatcher)   |
+  v                                       v
 lib/auto-dispatch.sh                  lib/minion-run.sh
   |  config parsing, dispatcher           |  frontmatter -> Pi CLI flags
   |  invocation, route resolution         |  prompt composition + Pi invocation
@@ -74,8 +75,8 @@ Output captured by Bash tool -> returned to Claude's context
 | `/minion` command | User-facing entry point, argument parsing | Markdown (COMMAND.md) |
 | `delegate-to-minion` skill | Execution logic, UX, error handling, Pi install flow, return Pi output to Claude's context | Markdown (SKILL.md) |
 | `auto-minion` skill | Auto mode enable/disable/status UX, dispatch to auto-dispatch.sh, fallback to Claude | Markdown (SKILL.md) |
-| `auto-minion` hook | Pre-message hook: intercepts prompts when auto mode is on | Markdown (hooks/auto-minion.md) |
-| `auto-minion-hook.sh` | Shell-side hook logic: enabled check, bypass detection, dispatcher routing, full dispatch for external dispatchers | Bash |
+| `hooks/hooks.json` | Shell-based UserPromptSubmit hook registration | JSON |
+| `auto-minion-hook.sh` | Shell-based hook: enabled check, bypass, dispatch (external + inherit via `claude -p`), JSON I/O | Bash |
 | `minion-run.sh` | Minion file parsing, frontmatter-to-CLI mapping, Pi invocation | Bash |
 | `auto-dispatch.sh` | Auto.md config parsing, dispatcher invocation, route resolution, routed model execution | Bash |
 | Minion files | Reusable delegation definitions (frontmatter + prompt) | Markdown with YAML frontmatter |
@@ -236,47 +237,42 @@ Review the following code for OWASP Top 10 vulnerabilities.
 
 **Related Requirements:** PRD-AUTO-REQ-005 through PRD-AUTO-REQ-015
 
-### 4.7 `hooks/auto-minion.md`
+### 4.7 `hooks/hooks.json`
 
-**Responsibility:** Pre-message hook — thin Claude-side wrapper that delegates all mechanical work to `lib/auto-minion-hook.sh` and only involves Claude for result presentation or inherit-dispatcher classification.
+**Responsibility:** Register a shell-based `UserPromptSubmit` hook that runs `lib/auto-minion-hook.sh` on every user message.
 
-**Technology:** Claude Code pre-message hook (Markdown)
+**Technology:** Claude Code hooks.json (JSON)
 
 **Interfaces:**
-- Trigger: every user message (pre-message hook)
-- Runs: `lib/auto-minion-hook.sh` via Bash tool (reads user message from stdin)
-- Interprets: structured `STATUS:` output from the shell script
-- Dispatches to: `auto-minion` skill or handles natively based on STATUS
+- Trigger: `UserPromptSubmit` event (every user message)
+- Runs: `bash ${CLAUDE_PLUGIN_ROOT}/lib/auto-minion-hook.sh` with 300s timeout
 
 **Key Design Notes:**
-- Thin design: all state reading (marker file, config parsing, bypass checks) happens in `auto-minion-hook.sh`
-- Pass-through paths (`STATUS:DISABLED`, `STATUS:BYPASS`) require no action — message handled normally
-- Only Claude's involvement is needed for `STATUS:NEEDS_CLASSIFICATION` (inherit dispatcher) and `STATUS:DISPATCHED`/`STATUS:NATIVE` result presentation
-- User message passed to hook via stdin (temp file + pipe) to avoid shell injection; see Section 4.7.5 for safe invocation pattern
-
-**Safe invocation pattern:** Claude writes the user message using `printf '%s'` with single-quote assignment, writes it to a temp file, and pipes it to the script. For the NEEDS_CLASSIFICATION second invocation (`auto-dispatch.sh --category`), Claude reads the file into a variable first (`PROMPT_CONTENT="$(cat "$PROMPT_FILE")"`) and passes it as `"$PROMPT_CONTENT"` to prevent injection from prompt content containing double-quotes or `$()`.
+- Replaces the prompt-based `hooks/auto-minion.md` — all dispatch logic now runs in bash, saving tokens
+- Claude is only involved when the hook outputs `additionalContext` (to present results or handle native routes)
+- When disabled or bypassed, the script exits 0 with no output — zero token cost
 
 **Related Requirements:** PRD-AUTO-REQ-005
 
 ### 4.7.5 `lib/auto-minion-hook.sh`
 
-**Responsibility:** Shell-side logic for the pre-message hook — enabled check, bypass detection, config parsing, dispatcher type routing, and full dispatch for external dispatchers.
+**Responsibility:** Shell-based hook logic — enabled check, bypass detection, config parsing, classification (external or inherit via `claude -p`), route execution, and JSON output formatting.
 
-**Technology:** Bash
+**Technology:** Bash (requires `jq` for JSON I/O)
 
 **Interfaces:**
-- Input: user message on stdin
-- Output: structured `STATUS:` lines + optional body (always exits 0; errors surfaced via `STATUS:ERROR`)
-- Status values: `DISABLED`, `BYPASS`, `NEEDS_CLASSIFICATION`, `NATIVE`, `DISPATCHED`, `ERROR`
+- Input: JSON on stdin (`{"hook_event_name": "UserPromptSubmit", "user_prompt": "...", ...}`)
+- Output: JSON on stdout (`{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "..."}}`)
+- When disabled/bypassed: exit 0 with no output
 
 **Key Design Notes:**
 - Config path read from `.auto-enabled` marker (project-local first, then `$HOME`-scoped)
-- Config path validated as an absolute path before use (rejects relative paths with `STATUS:ERROR`)
-- Frontmatter parsed once into `$FRONTMATTER` variable; `show-routing` and `dispatcher` extracted via `sed` on that variable (no duplicate `awk` passes)
-- For `dispatcher: inherit`: calls `auto-dispatch.sh --dry-run`, captures stderr; on non-zero exit emits `STATUS:ERROR` rather than `STATUS:NEEDS_CLASSIFICATION` with incomplete data
-- For external dispatcher: captures both stdout and stderr from `auto-dispatch.sh`; parses key headers (`NEEDS_NATIVE_HANDLING`, `ROUTE:`, `FALLBACK:`) in a single `while read` loop
-- `SHOW_ROUTING:` emitted immediately after every `STATUS:` line (consistent position)
-- Stderr captured from `auto-dispatch.sh` propagated as `STDERR:` line in `STATUS:DISPATCHED` output
+- Config path validated as an absolute path before use (outputs error context JSON on failure)
+- Frontmatter parsed once into `$FRONTMATTER` variable; `show-routing` and `dispatcher` extracted via `sed`
+- For `dispatcher: inherit`: calls `auto-dispatch.sh --dry-run` to get categories/prompt, then `claude -p` to classify, then `auto-dispatch.sh --category` to execute
+- For external dispatcher: calls `auto-dispatch.sh` for full dispatch, parses headers in a `while read` loop
+- additionalContext uses XML-style tags: `<auto-minion-result>` (external model output), `<auto-minion-routing>` (native handling), `<auto-minion-error>` (errors)
+- All error paths output context telling Claude to handle natively or show the error
 
 **Related Requirements:** PRD-AUTO-REQ-005, PRD-AUTO-REQ-012
 
@@ -311,7 +307,7 @@ minion/
 │   └── auto-minion/
 │       └── SKILL.md             # Auto-minion: on/off/status + dispatch UX
 ├── hooks/
-│   └── auto-minion.md           # Pre-message hook: intercepts prompts in auto mode
+│   └── hooks.json               # Shell-based UserPromptSubmit hook registration
 ├── lib/
 │   ├── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation
 │   ├── auto-dispatch.sh         # Bash helper: config parsing + dispatcher + routing

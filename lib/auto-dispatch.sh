@@ -265,6 +265,11 @@ is_valid_category() {
 }
 
 # --- Build category list for dispatcher prompt ---
+# TRUST BOUNDARY: category descriptions come directly from the user-authored config file.
+# The user who writes the config is the same user running the tool, so these values are
+# trusted. The sanitization below (newline stripping, 200-char truncation) is a
+# defense-in-depth measure, not a security boundary. Anyone with write access to the
+# config file can influence the dispatcher prompt. Review your auto.md before use.
 build_category_list() {
   for cat in "${CAT_NAMES[@]}"; do
     local desc="${CAT_DESCRIPTION[$cat]:-${BUILTIN_DESCRIPTIONS[$cat]:-}}"
@@ -305,10 +310,15 @@ if [ -n "$OVERRIDE_CATEGORY" ]; then
   fi
   ROUTED_CATEGORY="$OVERRIDE_CATEGORY"
 elif $DISPATCHER_INHERIT; then
-  # Dispatcher is "inherit" — output prompt and categories for Claude to classify
+  # Dispatcher is "inherit" — output prompt and categories for Claude to classify.
+  # DISPATCHER_PROMPT embeds free-text user input via $USER_PROMPT. To prevent a user
+  # message containing a newline followed by a protocol header (e.g. "CATEGORIES:") from
+  # injecting fake structured lines into this output, we base64-encode the prompt.
+  # The hook decodes it with: printf '%s' "$B64_VALUE" | base64 -d
+  DISPATCHER_PROMPT_B64="$(printf '%s' "$DISPATCHER_PROMPT" | base64 -w0 2>/dev/null || printf '%s' "$DISPATCHER_PROMPT" | base64)"
   echo "DISPATCHER:inherit"
   echo "CATEGORIES:${CAT_NAMES[*]}"
-  echo "DISPATCHER_PROMPT:$DISPATCHER_PROMPT"
+  printf 'DISPATCHER_PROMPT_B64:%s\n' "$DISPATCHER_PROMPT_B64"
   # In dry-run mode, that's all we output
   if $DRY_RUN; then
     exit 0

@@ -44,6 +44,11 @@ categories:
 #    provider: google
 #    model: gemini-2.5-pro
 
+# TRUST BOUNDARY: Category descriptions are included verbatim in the dispatcher
+# prompt. Because the config file is user-authored and only the user who writes
+# it can influence the dispatcher prompt, this is by design. Review your
+# descriptions before committing or sharing this file.
+
 # Show routing decision before output (true/false)
 show-routing: true
 ---

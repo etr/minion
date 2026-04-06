@@ -71,22 +71,35 @@ assert_file_contains() {
 }
 
 # with_mock_minionrun MOCK_CONTENT CALLBACK
-# Backs up $ROOT/lib/minion-run.sh, installs MOCK_CONTENT as the script,
-# calls CALLBACK (a shell function name), then restores.
-# The RETURN trap guarantees restore even if CALLBACK fails or the function
-# exits early for any reason.
+# Intercepts calls to lib/minion-run.sh by copying the entire lib/ directory into
+# a temp dir, installing the mock as minion-run.sh there, and redirecting the
+# AUTO_DISPATCH variable to the temp dir's copy of auto-dispatch.sh. Because
+# auto-dispatch.sh resolves SCRIPT_DIR from ${BASH_SOURCE[0]}, running it from
+# the temp copy makes it call the mock minion-run.sh sibling automatically.
+#
+# The real production file is NEVER modified, so a process kill during the test
+# cannot corrupt it — matching the pattern used by with_mock_pi (MOCK_DIR).
 # Usage: with_mock_minionrun "$mock_body" my_test_fn
 with_mock_minionrun() {
   local mock_content="$1"
   local callback="$2"
-  local real_path="$ROOT/lib/minion-run.sh"
-  cp "$real_path" "${real_path}.bak"
-  trap 'cp "${real_path}.bak" "$real_path" 2>/dev/null; rm -f "${real_path}.bak"' RETURN
-  printf '%s\n' "$mock_content" > "$real_path"
-  chmod +x "$real_path"
+  local mock_lib_dir
+  mock_lib_dir="$(mktemp -d)"
+  _CLEANUP_DIRS+=("$mock_lib_dir")
+  # Copy all lib/ scripts into the temp dir
+  cp "$ROOT/lib/"*.sh "$mock_lib_dir/" 2>/dev/null || true
+  # Install the mock minion-run.sh (real file untouched)
+  printf '%s\n' "$mock_content" > "$mock_lib_dir/minion-run.sh"
+  chmod +x "$mock_lib_dir/minion-run.sh"
+  # Redirect AUTO_DISPATCH to the temp lib dir's copy so SCRIPT_DIR resolves
+  # to the temp dir and sibling minion-run.sh calls hit the mock.
+  local saved_auto_dispatch="$AUTO_DISPATCH"
+  AUTO_DISPATCH="$mock_lib_dir/auto-dispatch.sh"
+  trap 'AUTO_DISPATCH="$saved_auto_dispatch"' RETURN
   set +e
   "$callback"
   set -e
+  AUTO_DISPATCH="$saved_auto_dispatch"
 }
 
 # with_mock_pi MOCK_CONTENT CALLBACK
@@ -415,6 +428,39 @@ run_and_check "inherit dispatcher outputs DISPATCHER:inherit" 0 "DISPATCHER:inhe
 run_and_check "inherit dispatcher outputs NEEDS_INLINE_CLASSIFICATION" 0 "NEEDS_INLINE_CLASSIFICATION" "" \
   -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/inherit-dispatcher.md" --prompt "test"
 
+run_and_check "inherit dispatcher non-dry-run outputs DISPATCHER_PROMPT_B64" 0 "DISPATCHER_PROMPT_B64:" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/inherit-dispatcher.md" --prompt "review my code"
+
+# Finding 5: DISPATCHER_PROMPT_B64 field must be present in inherit-dispatcher dry-run output
+# and must decode to output containing the user prompt text.
+INHERIT_DRY_STDOUT=""
+set +e
+INHERIT_DRY_STDOUT="$(bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/inherit-dispatcher.md" --prompt "review my code" --dry-run 2>/dev/null)"
+INHERIT_DRY_EXIT=$?
+set -e
+
+INHERIT_B64_LINE="$(echo "$INHERIT_DRY_STDOUT" | grep -c '^DISPATCHER_PROMPT_B64:' || true)"
+if [ "$INHERIT_B64_LINE" -ge 1 ]; then
+  echo "  PASS: inherit dispatcher dry-run outputs DISPATCHER_PROMPT_B64 field"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: inherit dispatcher dry-run outputs DISPATCHER_PROMPT_B64 field"
+  echo "    stdout=$INHERIT_DRY_STDOUT"
+  FAIL=$((FAIL + 1))
+fi
+
+INHERIT_B64_VALUE="$(echo "$INHERIT_DRY_STDOUT" | sed -n 's/^DISPATCHER_PROMPT_B64://p')"
+INHERIT_DECODED="$(printf '%s' "$INHERIT_B64_VALUE" | base64 -d 2>/dev/null || true)"
+if echo "$INHERIT_DECODED" | grep -qF "review my code"; then
+  echo "  PASS: DISPATCHER_PROMPT_B64 decodes to output containing the user prompt text"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: DISPATCHER_PROMPT_B64 decodes to output containing the user prompt text"
+  echo "    b64_value=$INHERIT_B64_VALUE"
+  echo "    decoded=$INHERIT_DECODED"
+  FAIL=$((FAIL + 1))
+fi
+
 # ============================================================
 echo ""
 echo "=== Inherit Category ==="
@@ -428,6 +474,17 @@ run_and_check "inherit category outputs PROVIDER:inherit" 0 "PROVIDER:inherit" "
 
 run_and_check "inherit category outputs MODEL:inherit" 0 "MODEL:inherit" "" \
   -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/inherit-category.md" --prompt "review my code" --dry-run
+
+# Finding 4: Non-dry-run path for a ROUTE_INHERIT category must output NEEDS_NATIVE_HANDLING
+# in the body (after ---) and exit 0 when no fallback reason.
+export MOCK_PI_EXIT_CODE=0
+export MOCK_PI_STDOUT="code-review"
+
+run_and_check "inherit category non-dry-run exits 0" 0 "" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/inherit-category.md" --prompt "review my code"
+
+run_and_check "inherit category non-dry-run outputs NEEDS_NATIVE_HANDLING" 0 "NEEDS_NATIVE_HANDLING" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/inherit-category.md" --prompt "review my code"
 
 # ============================================================
 echo ""
@@ -812,6 +869,86 @@ _sentinel_pi_test() {
 }
 # with_mock_pi guarantees restore of the standard pi body via RETURN trap
 with_mock_pi "$_sentinel_pi_body" _sentinel_pi_test
+
+# ============================================================
+echo ""
+echo "=== with_mock_minionrun: Production File Safety ==="
+# ============================================================
+# Finding 4: with_mock_minionrun must not modify the production file in-place.
+# The real minion-run.sh must be byte-for-byte identical before and after the call.
+
+_REAL_MINIONRUN="$ROOT/lib/minion-run.sh"
+_MINIONRUN_CHECKSUM_BEFORE="$(md5sum "$_REAL_MINIONRUN" | awk '{print $1}')"
+
+_file_safety_test() {
+  # Inside the callback: the mock is active. Verify the real file is NOT the mock content.
+  local content_inside
+  content_inside="$(cat "$_REAL_MINIONRUN" 2>/dev/null || echo MISSING)"
+  # The mock contains a known unique marker string
+  if ! echo "$content_inside" | grep -qF "MINIONRUN_SAFETY_MARKER_12345"; then
+    echo "  PASS: production minion-run.sh not modified inside with_mock_minionrun callback"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: production minion-run.sh was modified in-place by with_mock_minionrun"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+_safety_mock_body='#!/usr/bin/env bash
+# MINIONRUN_SAFETY_MARKER_12345
+echo "mock output"
+exit 0'
+
+with_mock_minionrun "$_safety_mock_body" _file_safety_test
+
+_MINIONRUN_CHECKSUM_AFTER="$(md5sum "$_REAL_MINIONRUN" | awk '{print $1}')"
+if [ "$_MINIONRUN_CHECKSUM_BEFORE" = "$_MINIONRUN_CHECKSUM_AFTER" ]; then
+  echo "  PASS: real minion-run.sh is byte-for-byte identical after with_mock_minionrun"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: real minion-run.sh was corrupted by with_mock_minionrun"
+  echo "    before=$_MINIONRUN_CHECKSUM_BEFORE after=$_MINIONRUN_CHECKSUM_AFTER"
+  FAIL=$((FAIL + 1))
+fi
+
+# ============================================================
+echo ""
+echo "=== --category Flag ==="
+# ============================================================
+# Finding 3: The --category flag codepath (lines 299-306) has zero tests.
+# Cover: (1) valid category + --dry-run routes correctly,
+#        (2) unknown category exits 1 with 'unknown category' on stderr,
+#        (3) --category default routes to ROUTE:default,
+#        (4) --category with --dry-run shows correct ROUTE/PROVIDER/MODEL lines.
+
+# Set up mock pi to confirm it is NOT called when --category is given
+export MOCK_PI_EXIT_CODE=99
+export MOCK_PI_STDOUT="should_not_be_called"
+
+# (1) valid category + --dry-run routes correctly
+run_and_check "--category valid category with --dry-run routes correctly" 0 "ROUTE:code-review" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "review my code" --category "code-review" --dry-run
+
+# (4) --category with --dry-run shows correct ROUTE/PROVIDER/MODEL lines
+run_and_check "--category dry-run shows correct PROVIDER" 0 "PROVIDER:anthropic" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "review my code" --category "code-review" --dry-run
+
+run_and_check "--category dry-run shows correct MODEL" 0 "MODEL:claude-sonnet" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "review my code" --category "code-review" --dry-run
+
+# (2) unknown category exits 1 with 'unknown category' on stderr
+run_and_check "--category unknown category exits 1 with 'unknown category' on stderr" 1 "" "unknown category" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "test" --category "nonexistent-category" --dry-run
+
+# (3) --category default routes to ROUTE:default
+run_and_check "--category default routes to ROUTE:default" 0 "ROUTE:default" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "test" --category "default" --dry-run
+
+run_and_check "--category default uses correct provider for default route" 0 "PROVIDER:openai" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "test" --category "default" --dry-run
+
+run_and_check "--category default uses correct model for default route" 0 "MODEL:gpt-4o" "" \
+  -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "test" --category "default" --dry-run
 
 # ============================================================
 echo ""

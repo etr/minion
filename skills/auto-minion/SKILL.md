@@ -6,18 +6,17 @@ user-invocable: false
 
 # Auto-Minion Skill
 
-Manages auto-minion mode: enabling/disabling, showing status, and dispatching prompts to the appropriate model based on category-based routing rules.
+Manages auto-minion mode: enabling/disabling and showing status. Prompt dispatch is handled by the shell-based `UserPromptSubmit` hook (`hooks/hooks.json` + `lib/auto-minion-hook.sh`).
 
 ## Execution Flow
 
 ### 1. Determine Action
 
-Read the context passed by the `/minion` command or the auto-minion hook to determine the action:
+Read the context passed by the `/minion` command to determine the action:
 
 - If the context contains **"auto-minion subcommand: on"**: proceed to **Step 2** (Enable).
 - If the context contains **"auto-minion subcommand: off"**: proceed to **Step 3** (Disable).
 - If the context contains **"auto-minion subcommand: status"**: proceed to **Step 4** (Status).
-- If the context contains **"auto-minion dispatch"** followed by a prompt: proceed to **Step 5** (Dispatch).
 - Otherwise: show usage help:
 
 > **Auto-minion mode** routes every prompt to the best model automatically.
@@ -152,101 +151,3 @@ fi
 
 **If `ENABLED`**: read the config path from the marker, run a dry-run dispatch, and present the same summary as Step 2e but prefixed with "Auto-minion mode is ON."
 
-### 5. Dispatch Prompt
-
-This step is invoked by the auto-minion hook when auto mode is active.
-
-#### 5a. Read Config Path
-
-The hook provides the config path. Read it from the marker file if needed:
-
-```bash
-if test -f "./.claude/minions/.auto-enabled"; then
-  cat "./.claude/minions/.auto-enabled"
-elif test -f "$HOME/.claude/minions/.auto-enabled"; then
-  cat "$HOME/.claude/minions/.auto-enabled"
-fi
-```
-
-Extract the `config=` value.
-
-#### 5b. Execute Auto-Dispatch
-
-Write the user prompt to a temporary file to avoid any shell quoting issues, then pass it via `--prompt` using a `$(cat ...)` substitution:
-
-```bash
-PROMPT_FILE="$(mktemp)"
-printf '%s' '<user_prompt>' > "$PROMPT_FILE"
-AUTO_CONFIG='<config_path>'
-bash lib/auto-dispatch.sh --config "$AUTO_CONFIG" --prompt "$(cat "$PROMPT_FILE")"
-rm -f "$PROMPT_FILE"
-```
-
-Pass `<config_path>` using single-quote assignment as shown — config paths are validated as absolute paths with no special characters.
-
-#### 5c. Parse Output
-
-The output from `auto-dispatch.sh` has a header section and a body section separated by `---`.
-
-Parse the header lines:
-- `ROUTE:<category>` — which category was matched
-- `PROVIDER:<provider>` or `PROVIDER:inherit` — the provider for the routed model
-- `MODEL:<model>` or `MODEL:inherit` — the model for the routed model
-- `MINION:<name>` — if routing to a minion file
-- `FALLBACK:<reason>` — `none`, `dispatcher_failed`, `dispatcher_unrecognized`, `no_default`
-- `DISPATCHER:inherit` — dispatcher needs inline classification (see 5d)
-- `NEEDS_NATIVE_HANDLING` — Claude should handle the prompt directly
-- `NEEDS_INLINE_CLASSIFICATION` — Claude should classify the prompt (see 5d)
-
-The body (after `---`) is the Pi output from the routed model.
-
-#### 5d. Handle "inherit" Dispatcher
-
-If the output contains `DISPATCHER:inherit` and `NEEDS_INLINE_CLASSIFICATION`:
-
-The dispatcher prompt is provided in the output. Read the categories list and the user's prompt.
-
-Classify the prompt yourself by examining the user's prompt against the available categories. Output the category name. Then re-invoke auto-dispatch with a `--category` override (or simply invoke `minion-run.sh` directly for the matched category's provider/model).
-
-In practice: read the category list, decide which category best matches the user's prompt, then execute the corresponding model via Pi CLI using `lib/minion-run.sh`.
-
-#### 5e. Handle "inherit" Route
-
-If `PROVIDER:inherit` and `MODEL:inherit`: the prompt should be handled by Claude Code's native model. Simply pass through — do not invoke Pi. Present:
-
-> [auto-minion → `<category>` via Claude (native)]
-
-Then let Claude handle the prompt directly in conversation.
-
-#### 5f. Present Results
-
-**On success (exit 0):**
-
-If `show-routing` is enabled in the config, present the routing attribution before the output:
-
-> [auto-minion → `<category>` via `<provider>`/`<model>`]
->
-> <Pi output>
-
-If `show-routing` is not enabled, present the Pi output directly without attribution.
-
-Do not summarize or modify Pi's output. Present it verbatim.
-
-**On exit 3 (dispatcher failed, used default):**
-
-> [auto-minion → default (dispatcher unavailable) via `<provider>`/`<model>`]
->
-> <Pi output>
-
-**On exit 4 (all routes failed):**
-
-> **Auto-minion routing failed.** Both the routed model and default model returned errors.
-> Falling back to Claude (native).
-
-Then handle the user's prompt directly with Claude — respond to their original prompt as Claude normally would.
-
-**On exit 1 (config error):**
-
-> **Auto-minion config error:** `<stderr>`
->
-> Please check your auto-minion config or disable auto mode with `/minion auto off`.

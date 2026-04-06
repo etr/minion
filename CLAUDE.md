@@ -19,7 +19,7 @@ minion/
 │   └── auto-minion/
 │       └── SKILL.md             # Auto-minion mode: on/off/status + dispatch
 ├── hooks/
-│   └── auto-minion.md           # Pre-message hook: intercepts prompts when auto mode is on
+│   └── hooks.json               # Shell-based UserPromptSubmit hook registration
 ├── lib/
 │   ├── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation (TASK-003)
 │   ├── auto-dispatch.sh         # Bash helper: config parsing + dispatcher + route resolution
@@ -46,8 +46,8 @@ minion/
 - **SKILL.md**: Markdown with YAML frontmatter. Frontmatter defines skill metadata (name, description, user-invocable). Body contains the skill's execution instructions.
 - **minion-run.sh**: Pure bash. Parses minion file YAML frontmatter, maps to Pi CLI flags, invokes Pi.
 - **auto-dispatch.sh**: Pure bash. Parses auto.md config, invokes dispatcher model via Pi, resolves route, executes routed model. Supports `--category` flag to skip dispatcher and route directly.
-- **auto-minion-hook.sh**: Pure bash. Pre-message hook logic: checks enabled state, bypass conditions, dispatcher type, and runs full dispatch for external dispatchers. Outputs structured STATUS lines.
-- **hooks/auto-minion.md**: Thin prompt-based hook. Delegates mechanical work to `auto-minion-hook.sh`, only involves Claude for result presentation or inherit-dispatcher classification.
+- **auto-minion-hook.sh**: Pure bash. Shell-based UserPromptSubmit hook: checks enabled state, bypass conditions, classifies (external dispatcher or `claude -p` for inherit), executes routed model, outputs JSON with `additionalContext`. Requires `jq`.
+- **hooks/hooks.json**: Registers `auto-minion-hook.sh` as a `UserPromptSubmit` shell hook. Replaces the former prompt-based `hooks/auto-minion.md`.
 
 ## Architecture Notes
 
