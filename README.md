@@ -120,7 +120,9 @@ skills:
   - code-review
 ```
 
-## Auto-Minion Mode
+## Auto-Minion Mode [Experimental]
+
+!!! WARNING !!! : Auto-Minion mode is experimental and, while it was already tested, it still needs more in-depth and varied testing. I welcome you to try it, and please report back if you do, just be aware it might be flaky.
 
 Auto-minion mode routes every prompt to the best model automatically, without requiring `/minion` invocations. When enabled, a pre-message hook intercepts each prompt, classifies it by category, and dispatches to the configured model.
 
