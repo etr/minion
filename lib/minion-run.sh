@@ -272,10 +272,27 @@ valid_skill_name() {
 resolve_claude_skill() {
   local entry="$1"
 
-  # Case 1: absolute path
+  # Case 1: absolute path — confined to safe roots
   case "$entry" in
     /*)
       [ -f "$entry" ] || return 1
+      # Canonicalize and verify the path is under an allowed root.
+      local canonical
+      canonical="$(realpath -m "$entry" 2>/dev/null || readlink -f "$entry" 2>/dev/null || echo "$entry")"
+      local allowed=0
+      for allowed_root in \
+        "$(realpath -m "./.claude/skills" 2>/dev/null || echo "./.claude/skills")" \
+        "$HOME/.claude/skills" \
+        "$HOME/.claude/plugins/cache"
+      do
+        case "$canonical" in
+          "$allowed_root"/*) allowed=1; break ;;
+        esac
+      done
+      if [ "$allowed" -eq 0 ]; then
+        echo "claude-skill absolute path is outside allowed directories: $entry" >&2
+        return 1
+      fi
       echo "$entry"
       return 0
       ;;
@@ -346,8 +363,9 @@ transform_skill_body() {
 }
 
 # Strip YAML frontmatter from a file's content (everything between first '---' pair).
+# Pre-frontmatter content (before the first ---) is suppressed, not emitted.
 strip_frontmatter() {
-  awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++;next} c<1{print; next} c>=2{print}' "$1"
+  awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++;next} c==1{next} c>=2{print}' "$1"
 }
 
 # Determine the display name (### header) for a resolved skill path.
@@ -479,9 +497,11 @@ done <<EOF
 $EFFECTIVE_PI_SKILLS
 EOF
 
-# Final composed prompt argument (only if non-empty)
+# Final composed prompt argument (only if non-empty).
+# The -- sentinel ensures the prompt is never interpreted as a Pi CLI flag,
+# even if it begins with --.
 if [ -n "$COMPOSED" ]; then
-  cmd+=("$COMPOSED")
+  cmd+=(-- "$COMPOSED")
 fi
 
 # --- Execute ---

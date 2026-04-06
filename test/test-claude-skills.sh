@@ -327,8 +327,12 @@ check_bare_plugin_fallback() {
 }
 check "claude-skills bare name falls through to plugins cache" check_bare_plugin_fallback
 
-# 2e. Absolute path resolution
-ABS_SKILL_PATH="$MOCK_DIR/abs-skill-dir/SKILL.md"
+# 2e. Absolute path resolution — path must be inside an allowed root.
+# We place the skill inside a fake $HOME/.claude/skills/ directory so
+# the confinement check accepts it.
+ABS_HOME_DIR="$MOCK_DIR/abs-home"
+mkdir -p "$ABS_HOME_DIR/.claude/skills/abs-skill-dir"
+ABS_SKILL_PATH="$ABS_HOME_DIR/.claude/skills/abs-skill-dir/SKILL.md"
 create_skill_file "$ABS_SKILL_PATH"
 MINFILE_ABS="$(create_minion_file "---
 provider: openai
@@ -338,10 +342,13 @@ claude-skills:
 ---
 Body text")"
 
+EMPTY_DIR_ABS="$MOCK_DIR/empty-cwd-abs"
+mkdir -p "$EMPTY_DIR_ABS"
+
 check_absolute_path() {
   local stdout
   set +e
-  stdout="$("$MINION_RUN" --file "$MINFILE_ABS" 2>/dev/null)"
+  stdout="$(cd "$EMPTY_DIR_ABS" && HOME="$ABS_HOME_DIR" "$MINION_RUN" --file "$MINFILE_ABS" 2>/dev/null)"
   local rc=$?
   set -e
   [ "$rc" = "0" ] || return 1
@@ -850,6 +857,172 @@ run_and_check \
   "-e ext-a -e ext-b" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE_REGRESSION"
+
+# ============================================================
+# Phase 8: Security — -- sentinel before prompt (Finding 1)
+# ============================================================
+echo ""
+echo "-- -- sentinel before composed prompt --"
+
+# 8a. A prompt starting with --no-tools is passed as literal text, not a flag.
+# The fake-pi mock echoes all args; without --, pi would interpret --no-tools as a flag.
+# With --, it appears as a literal argument in the echo output.
+MINFILE_SENTINEL="$(create_minion_file "---
+provider: openai
+model: gpt-4
+---
+--no-tools is the prompt body")"
+
+check_sentinel_literal_prompt() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --file "$MINFILE_SENTINEL" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
+  # The -- sentinel must appear immediately before the prompt argument in the args list.
+  # The mock echoes: "MOCK_ARGS: ...flags... -- --no-tools is the prompt body"
+  # We use grep -F with a literal string; use grep -e to avoid -- being parsed as options.
+  if ! echo "$stdout" | grep -qFe "-- --no-tools is the prompt body"; then
+    echo "        stdout does not contain '-- --no-tools is the prompt body'"
+    echo "        stdout was: $stdout"
+    return 1
+  fi
+}
+check "prompt starting with --no-tools is preceded by -- sentinel" check_sentinel_literal_prompt
+
+# ============================================================
+# Phase 9: Security — absolute-path confinement (Finding 2)
+# ============================================================
+echo ""
+echo "-- absolute-path confinement --"
+
+# 9a. Absolute path inside $HOME/.claude/skills/ is accepted.
+CONFINEMENT_HOME="$MOCK_DIR/confinement-home"
+mkdir -p "$CONFINEMENT_HOME/.claude/skills/allowed-skill"
+cat > "$CONFINEMENT_HOME/.claude/skills/allowed-skill/SKILL.md" <<'EOF'
+---
+name: allowed-skill
+description: confinement test
+---
+ALLOWED_SKILL_BODY
+EOF
+
+ABS_ALLOWED_PATH="$CONFINEMENT_HOME/.claude/skills/allowed-skill/SKILL.md"
+MINFILE_ABS_ALLOWED="$(create_minion_file "---
+provider: openai
+model: gpt-4
+claude-skills:
+  - $ABS_ALLOWED_PATH
+---
+Body")"
+
+EMPTY_DIR_CONF="$MOCK_DIR/empty-cwd-conf"
+mkdir -p "$EMPTY_DIR_CONF"
+
+check_abs_allowed() {
+  local stdout
+  set +e
+  stdout="$(cd "$EMPTY_DIR_CONF" && HOME="$CONFINEMENT_HOME" "$MINION_RUN" --file "$MINFILE_ABS_ALLOWED" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
+  echo "$stdout" | grep -qF "ALLOWED_SKILL_BODY" || { echo "        missing ALLOWED_SKILL_BODY"; return 1; }
+}
+check "absolute path inside HOME/.claude/skills/ is accepted" check_abs_allowed
+
+# 9b. Absolute path OUTSIDE the allowlist (e.g., /tmp) is rejected with error message.
+TMP_SKILL_DIR="$MOCK_DIR/tmp-outside-skill"
+mkdir -p "$TMP_SKILL_DIR"
+cat > "$TMP_SKILL_DIR/SKILL.md" <<'EOF'
+---
+name: evil-skill
+description: should not be loaded
+---
+EVIL_BODY
+EOF
+
+ABS_OUTSIDE_PATH="$TMP_SKILL_DIR/SKILL.md"
+MINFILE_ABS_OUTSIDE="$(create_minion_file "---
+provider: openai
+model: gpt-4
+claude-skills:
+  - $ABS_OUTSIDE_PATH
+---
+Body")"
+
+run_and_check \
+  "absolute path outside allowlist is rejected with error" \
+  1 \
+  "" \
+  "absolute path is outside allowed directories" \
+  -- env HOME="$CONFINEMENT_HOME" "$MINION_RUN" --file "$MINFILE_ABS_OUTSIDE"
+
+# 9c. Verify the evil body is NOT in stdout even when rejected.
+check_stdout_absent \
+  "rejected absolute path does not leak file contents" \
+  "EVIL_BODY" \
+  -- env HOME="$CONFINEMENT_HOME" "$MINION_RUN" --file "$MINFILE_ABS_OUTSIDE"
+
+# ============================================================
+# Phase 10: Security — strip_frontmatter pre-content leak (Finding 3)
+# ============================================================
+echo ""
+echo "-- strip_frontmatter pre-frontmatter content --"
+
+# 10a. A skill file with content BEFORE the first '---' must NOT leak that content.
+PRE_FM_HOME="$MOCK_DIR/pre-fm-home"
+mkdir -p "$PRE_FM_HOME/.claude/skills/pre-fm-skill"
+cat > "$PRE_FM_HOME/.claude/skills/pre-fm-skill/SKILL.md" <<'EOF'
+THIS_LINE_BEFORE_FRONTMATTER
+---
+name: pre-fm-skill
+description: pre-frontmatter test
+---
+# Skill Body
+
+SKILL_BODY_CONTENT
+EOF
+
+MINFILE_PRE_FM="$(create_minion_file "---
+provider: openai
+model: gpt-4
+claude-skills:
+  - pre-fm-skill
+---
+Body")"
+
+EMPTY_DIR_PFM="$MOCK_DIR/empty-cwd-pfm"
+mkdir -p "$EMPTY_DIR_PFM"
+
+check_stdout_absent \
+  "pre-frontmatter content is not leaked into prompt" \
+  "THIS_LINE_BEFORE_FRONTMATTER" \
+  -- bash -c "cd '$EMPTY_DIR_PFM' && HOME='$PRE_FM_HOME' '$MINION_RUN' --file '$MINFILE_PRE_FM'"
+
+# 10b. A skill file with NO frontmatter at all must not dump all content as pre-content.
+NO_FM_HOME="$MOCK_DIR/no-fm-home"
+mkdir -p "$NO_FM_HOME/.claude/skills/no-fm-skill"
+cat > "$NO_FM_HOME/.claude/skills/no-fm-skill/SKILL.md" <<'EOF'
+NO_FRONTMATTER_CONTENT
+This file has no --- delimiters at all.
+EOF
+
+MINFILE_NO_FM="$(create_minion_file "---
+provider: openai
+model: gpt-4
+claude-skills:
+  - no-fm-skill
+---
+Body")"
+
+EMPTY_DIR_NFM="$MOCK_DIR/empty-cwd-nfm"
+mkdir -p "$EMPTY_DIR_NFM"
+
+check_stdout_absent \
+  "skill file with no frontmatter does not dump content" \
+  "NO_FRONTMATTER_CONTENT" \
+  -- bash -c "cd '$EMPTY_DIR_NFM' && HOME='$NO_FM_HOME' '$MINION_RUN' --file '$MINFILE_NO_FM'"
 
 # --- Summary ---
 echo ""

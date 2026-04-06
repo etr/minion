@@ -148,11 +148,11 @@ model: gpt-4
 ---
 Base prompt only")"
 
-# 2. No extra-input: body passed alone
+# 2. No extra-input: body passed alone (with -- sentinel before it)
 run_and_check \
   "--file without --extra-input uses body as-is" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 Base prompt only" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- Base prompt only" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE_NOEXTRA"
 
@@ -195,11 +195,11 @@ model: gpt-4
 ---
 Base prompt unchanged")"
 
-# 5. Empty --extra-input treated as absent
+# 5. Empty --extra-input treated as absent (with -- sentinel before body)
 run_and_check \
   "--extra-input with empty string uses body as-is" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 Base prompt unchanged" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- Base prompt unchanged" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE_EMPTY_EXTRA" --extra-input ""
 

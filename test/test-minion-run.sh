@@ -116,12 +116,13 @@ echo "-- Basics --"
 check "script is executable" test -x "$MINION_RUN"
 
 # --- 2. Correct Pi command with all three params ---
+# The -- sentinel precedes the prompt so Pi never interprets it as a flag.
 echo ""
 echo "-- Argument passing --"
 run_and_check \
   "passes --provider --model and prompt to pi" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
@@ -129,7 +130,7 @@ run_and_check \
 run_and_check \
   "params in different order work" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
   "" \
   -- "$MINION_RUN" --model gpt-4 --prompt hello --provider openai
 
@@ -137,7 +138,7 @@ run_and_check \
 run_and_check \
   "prompt with spaces preserved as single arg" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello world how are you" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello world how are you" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt "hello world how are you"
 

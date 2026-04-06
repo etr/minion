@@ -156,10 +156,11 @@ run_and_check \
   -- "$MINION_RUN" --file "/tmp/does-not-exist-$RANDOM.md"
 
 # Test: inline mode still works (regression)
+# The -- sentinel precedes the prompt so Pi never interprets it as a flag.
 run_and_check \
   "inline mode still works" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
@@ -176,10 +177,11 @@ model: claude-3-opus
 ---
 Review this code")"
 
+# The -- sentinel precedes the prompt argument in the final command.
 run_and_check \
   "provider and model map to pi flags" \
   0 \
-  "MOCK_ARGS: --provider anthropic --model claude-3-opus Review this code" \
+  "MOCK_ARGS: --provider anthropic --model claude-3-opus -- Review this code" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE2"
 
