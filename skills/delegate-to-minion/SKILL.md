@@ -178,9 +178,23 @@ Frontmatter parsing is handled automatically by `lib/minion-run.sh --file`. The 
 - Required: `provider`, `model` — script exits 1 with an error listing missing fields if absent
 - Optional string fields: `thinking`, `tools`, `max-turns`, `append-system-prompt`
 - Optional boolean fields: `no-tools`, `no-session`, `stream` — emitted as bare `--flag` when `true`
-- Optional list fields: `extensions` (mapped to `-e` per entry), `skills` (mapped to `--skill` per entry)
+- Optional list fields:
+  - `extensions` — mapped to `-e <value>` per entry
+  - `pi-skills` — mapped to `--skill <value>` per entry (Pi-side skills)
+  - `claude-skills` — Claude Code skill names whose bodies are loaded and embedded in the prompt as a `## Available Skills` preamble. Each entry may be a bare name (resolved from project, user-global, or plugin cache locations), an absolute path to a `SKILL.md`, or a `plugin:skill` qualified name. Skill names are validated against `^[a-zA-Z0-9._-]+$` to prevent path traversal.
 
-The markdown body after the second `---` delimiter is used as the base prompt.
+The markdown body after the second `---` delimiter is used as the base prompt. When `claude-skills` is present, the composed prompt becomes:
+
+```
+## Available Skills
+### <skill 1>
+<transformed body>
+### <skill 2>
+<transformed body>
+---
+<minion body>
+<extra input>
+```
 
 ### 6. Compose Prompt
 
@@ -221,6 +235,35 @@ bash lib/minion-run.sh --file "$MINION_FILE"
 ```
 
 **Quoting rules:** For `<resolved_absolute_path>`, if the value contains single quotes, replace each `'` with `'\''` before embedding in the single-quoted assignment. The same rule applies to `<extra_input>`.
+
+#### Mixed Mode Execution (file + inline overrides)
+
+When the user supplies a minion name AND inline override flags, pass the file path AND the inline flags to `minion-run.sh`. Inline values replace the file's values for the matching fields:
+
+```bash
+MINION_FILE='<resolved_absolute_path>'
+MINION_EXTRA='<extra_input>'
+bash lib/minion-run.sh \
+  --file "$MINION_FILE" \
+  --provider anthropic \
+  --model claude-opus-4-6 \
+  --claude-skills hook-development,command-development \
+  --extra-input "$MINION_EXTRA"
+```
+
+For list overrides (`--extensions`, `--pi-skills`, `--claude-skills`), the comma-separated value REPLACES the file's list (no append). For boolean overrides (`--no-tools`, `--no-session`, `--stream`), presence of the flag forces the value to true.
+
+#### Loading Claude Skills
+
+The `--claude-skills` flag accepts a comma-separated list of skill identifiers. Each skill is resolved, its `SKILL.md` body is read, the YAML frontmatter is stripped, tool-name transformations are applied, and the result is embedded into the prompt under `## Available Skills`. This works in both file mode and pure inline mode:
+
+```bash
+bash lib/minion-run.sh \
+  --provider anthropic \
+  --model claude-opus-4-6 \
+  --claude-skills plugin-dev:hook-development \
+  --prompt "Design a UserPromptSubmit hook that filters spam"
+```
 
 #### Inline Mode Execution
 

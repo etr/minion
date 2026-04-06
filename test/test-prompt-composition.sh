@@ -157,31 +157,31 @@ run_and_check \
   -- "$MINION_RUN" --file "$MINFILE_NOEXTRA"
 
 # ============================================================
-# Phase 3: --extra-input without --file is an error
+# Phase 3: --extra-input is now permitted in inline mode (FEATURE-claude-skills)
 # ============================================================
 echo ""
-echo "-- Validation --"
+echo "-- Inline mode + extra-input --"
 
-# 3. extra-input requires --file
+# 3. inline mode supports --extra-input — it appends after --prompt
 run_and_check \
-  "--extra-input without --file exits 2" \
-  2 \
-  "" \
-  "--extra-input requires --file" \
-  -- "$MINION_RUN" --extra-input "some text"
-
-# ============================================================
-# Phase 4: --extra-input with inline mode flags is a conflict
-# ============================================================
-
-# 4. extra-input conflicts with inline mode flags (exit code 2; message may vary
-#    depending on whether --extra-input-requires-file or file-inline-conflict fires first)
-run_and_check \
-  "--extra-input with inline flags exits 2 (conflict)" \
-  2 \
-  "" \
+  "inline mode --provider/--model/--prompt + --extra-input works" \
+  0 \
+  "MOCK_ARGS:" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello --extra-input "extra"
+
+# Verify content composition: prompt and extra-input both end up in the prompt arg
+check_extra_inline_compose() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --provider openai --model gpt-4 --prompt "BASE" --extra-input "EXTRA" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || return 1
+  echo "$stdout" | grep -qF "BASE" || return 1
+  echo "$stdout" | grep -qF "EXTRA" || return 1
+}
+check "inline mode composes --prompt and --extra-input" check_extra_inline_compose
 
 # ============================================================
 # Phase 5: --extra-input with empty string uses body as-is

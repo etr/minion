@@ -138,13 +138,14 @@ run_and_check \
   "" \
   -- "$MINION_RUN" --file "$MINFILE"
 
-# Test: --file and --provider are mutually exclusive
+# Test: --file and --provider can now be combined (override semantics).
+# Inline values replace file values for that field.
 run_and_check \
-  "--file and --provider mutually exclusive exits 2" \
-  2 \
+  "--file and --provider may be combined; inline overrides file" \
+  0 \
+  "--provider override" \
   "" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE" --provider openai
+  -- "$MINION_RUN" --file "$MINFILE" --provider override
 
 # Test: --file with nonexistent path
 run_and_check \

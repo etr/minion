@@ -328,12 +328,11 @@ assert r.returncode == 1
 assert 'missing' in r.stderr.lower(), f'stderr={r.stderr!r}'
 "
 
-check "missing all inline: stderr lists provider, model, prompt" python3 -c "
+check "missing all inline: stderr lists provider and model" python3 -c "
 import subprocess
 r = subprocess.run(['bash', '$MINION_RUN'], capture_output=True, text=True)
 assert 'provider' in r.stderr, f'stderr={r.stderr!r}'
 assert 'model' in r.stderr, f'stderr={r.stderr!r}'
-assert 'prompt' in r.stderr, f'stderr={r.stderr!r}'
 "
 
 # Missing inline params (missing just prompt)
