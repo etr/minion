@@ -4,6 +4,39 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-05 | Milestone 5: Auto-Minion Mode (TASK-010 through TASK-015)
+
+1. [ ] `major` **spec-alignment** | `lib/auto-dispatch.sh` | ears-requirement: PRD-AUTO-REQ-016 requires show-routing attribution but auto-dispatch.sh has no SHOW_ROUTING: header in output protocol; skill has no instruction for reading this field from config -- Add SHOW_ROUTING:true|false header to auto-dispatch.sh output and update SKILL.md Step 5c
+2. [ ] `minor` **security** | `lib/auto-dispatch.sh:83` | injection: echo "$BODY" could misinterpret content starting with -n/-e/-E as flags -- Replace with printf '%s\n' "$BODY"
+3. [ ] `minor` **security** | `lib/auto-dispatch.sh:270` | injection: {{prompt}} substitution inserts USER_PROMPT verbatim; user prompt containing {{categories}} could confuse dispatcher LLM (prompt injection, not shell injection) -- Strip or escape {{ and }} from USER_PROMPT before substitution
+4. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:110` | code-structure: is_inherit() duplicates parse_field() sed extraction -- Implement as val="$(parse_field "$1")"; [ "$val" = "inherit" ]
+5. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:311` | naming: VALID variable name too generic -- Rename to CATEGORY_RECOGNIZED
+6. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:302` | code-structure: Dispatch failure condition could use named boolean -- Assign to dispatcher_failed variable
+7. [ ] `minor` **performance** | `lib/auto-dispatch.sh:125` | algorithmic-complexity: validate_identifier uses echo|grep fork per call -- Replace with bash [[ "$val" =~ ^[a-zA-Z0-9._-]+$ ]]
+8. [ ] `minor` **performance** | `lib/auto-dispatch.sh:225` | algorithmic-complexity: Two separate validation loops over CAT_NAMES -- Merge into single pass
+9. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:367` | code-structure: Nested if [ -n "$MINION_FILE" ] check redundant after resolution block -- Remove wrapper, call minion-run.sh directly
+10. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:178` | naming: local_val/local_key prefix inconsistent with rest of script -- Rename to cat_val/field_key
+11. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:423` | code-structure: Bare echo "" to stderr before fallback error message -- Remove or fold into error message
+12. [ ] `minor` **code-quality** | `lib/auto-dispatch.sh:401` | error-handling: FALLBACK_REASON not set for missing-minion fallback path -- Set FALLBACK_REASON="minion_not_found" before default fallback
+13. [ ] `minor` **code-quality** | `lib/auto-dispatch.sh:255` | code-readability: Inherit-dispatcher block mixes exit points; NEEDS_INLINE_CLASSIFICATION intent unclear without reading skill -- Add comment explaining output is consumed by skill layer
+14. [ ] `minor` **spec-alignment** | `lib/auto-dispatch.sh:202` | specification-gap: minion: field in category config undocumented in specs/product_specs.md and examples/auto.md -- Document or confirm intentional scope
+15. [ ] `minor` **architecture** | `skills/auto-minion/SKILL.md:209` | pattern-violation: Step 5d references --category flag that doesn't exist in auto-dispatch.sh -- Remove --category reference, keep only the minion-run.sh direct invocation alternative
+16. [ ] `minor` **architecture** | `hooks/auto-minion.md:52` | interface-contract: Hook uses "Auto-minion dispatch" (capital A) but skill pattern-matches "auto-minion dispatch" (lowercase) -- Normalize casing
+17. [ ] `minor` **architecture** | `commands/minion/COMMAND.md:36` | interface-contract: Command uses "Auto-minion subcommand" (capital A) vs skill expects lowercase -- Normalize casing
+18. [ ] `minor` **architecture** | `.claude-plugin/plugin.json` | adr-violation: plugin.json doesn't reference hooks/auto-minion.md hook -- Verify if auto-discovery applies; if not, add hook entry
+19. [ ] `minor` **housekeeper** | `specs/architecture.md:4` | spec-not-updated: Last updated date 2026-04-02 despite DR-005/DR-006 added 2026-04-05 -- Bump to 2026-04-05
+20. [ ] `minor` **housekeeper** | `specs/product_specs.md:4` | spec-not-updated: Last updated date 2026-04-02 despite section 3.2 added -- Bump to 2026-04-05
+21. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:17` | naming: _CLEANUP_DIRS holds both dirs and files; name/comment says "dirs" -- Rename to _CLEANUP_PATHS
+22. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:667` | excessive-setup: Redundant rm -f after _CLEANUP_DIRS registration -- Remove manual rm -f or remove _CLEANUP_DIRS registration; pick one strategy
+23. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:719` | excessive-setup: MINIONRUN_CALL_FILE allocated but never read in site-2 block -- Remove unused variable
+24. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:347` | multiple-concerns: Four separate subprocess invocations for same routing scenario -- Capture output once and grep multiple patterns
+25. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:635` | naming: _minion_site1/site2/site3 use opaque positional names -- Rename to describe behavior (e.g., _mock_minionrun_record_args, _mock_minionrun_always_fail)
+26. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh` | missing-test: No test for category description containing embedded newlines (PRD-AUTO-REQ-014 newline stripping) -- Add fixture with newline in description
+27. [ ] `minor` **spec-alignment** | `hooks/auto-minion.md` | specification-gap: Bypass conditions only check '/' prefix and empty messages; system messages not mentioned -- Document bypass rationale
+28. [ ] `minor` **performance** | `skills/auto-minion/SKILL.md:100` | missing-caching: Steps 2c and 2e each invoke auto-dispatch.sh --dry-run separately for same config -- Run once, capture, reuse
+
+---
+
 ## Run: 2026-04-04 | TASK-009: README and marketplace distribution
 
 1. [ ] `major` **spec-alignment** | `(external repo)` | action-item: Marketplace README entry, install verification, and `/minion` availability check deferred — minion repo has no GitHub remote yet. Complete when `etr/minion` is published.

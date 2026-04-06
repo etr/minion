@@ -119,6 +119,15 @@ DISPATCHER_INHERIT=false
 DISPATCHER_PROVIDER=""
 DISPATCHER_MODEL=""
 
+validate_identifier() {
+  local val="$1"
+  local label="$2"
+  if ! echo "$val" | grep -qE '^[a-zA-Z0-9._-]+$'; then
+    echo "invalid $label: '$val' (must match [a-zA-Z0-9._-]+)" >&2
+    exit 1
+  fi
+}
+
 if is_inherit "dispatcher"; then
   DISPATCHER_INHERIT=true
 else
@@ -128,6 +137,8 @@ else
     echo "missing dispatcher provider or model in config" >&2
     exit 1
   fi
+  validate_identifier "$DISPATCHER_PROVIDER" "dispatcher provider"
+  validate_identifier "$DISPATCHER_MODEL" "dispatcher model"
 fi
 
 # --- Parse default route ---
@@ -141,6 +152,12 @@ else
   DEFAULT_PROVIDER="$(parse_nested_field default provider)"
   DEFAULT_MODEL="$(parse_nested_field default model)"
   # Default is optional; if missing we rely on ultimate fallback
+  if [ -n "$DEFAULT_PROVIDER" ]; then
+    validate_identifier "$DEFAULT_PROVIDER" "default provider"
+  fi
+  if [ -n "$DEFAULT_MODEL" ]; then
+    validate_identifier "$DEFAULT_MODEL" "default model"
+  fi
 fi
 
 # --- Parse categories ---
@@ -210,12 +227,15 @@ for cat in "${CAT_NAMES[@]}"; do
     continue
   fi
   if [ -n "${CAT_MINION[$cat]:-}" ]; then
+    validate_identifier "${CAT_MINION[$cat]}" "category '$cat' minion"
     continue
   fi
   if [ -z "${CAT_PROVIDER[$cat]:-}" ] || [ -z "${CAT_MODEL[$cat]:-}" ]; then
     echo "category '$cat' missing provider/model (and no minion: reference)" >&2
     exit 1
   fi
+  validate_identifier "${CAT_PROVIDER[$cat]}" "category '$cat' provider"
+  validate_identifier "${CAT_MODEL[$cat]}" "category '$cat' model"
 done
 
 # Validate: custom categories (not built-in) must have a description
@@ -230,7 +250,11 @@ done
 build_category_list() {
   for cat in "${CAT_NAMES[@]}"; do
     local desc="${CAT_DESCRIPTION[$cat]:-${BUILTIN_DESCRIPTIONS[$cat]:-}}"
-    echo "- ${cat}: ${desc}"
+    # Sanitize description: strip newlines and limit to 200 characters
+    desc="${desc//$'\n'/ }"
+    desc="${desc//$'\r'/ }"
+    desc="${desc:0:200}"
+    printf -- '- %s: %s\n' "$cat" "$desc"
   done
 }
 
@@ -239,11 +263,13 @@ CATEGORY_LIST="$(build_category_list)"
 # --- Compose dispatcher prompt ---
 compose_dispatcher_prompt() {
   local template="$BODY"
-  # Replace {{categories}} and {{prompt}} placeholders
+  # Replace {{categories}} and {{prompt}} placeholders.
+  # Both substitutions happen inside double-quoted parameter expansion — no word splitting.
+  # printf '%s' is used to avoid echo interpreting escape sequences or flags in the result.
   local result
   result="${template/\{\{categories\}\}/$CATEGORY_LIST}"
   result="${result/\{\{prompt\}\}/$USER_PROMPT}"
-  echo "$result"
+  printf '%s\n' "$result"
 }
 
 DISPATCHER_PROMPT="$(compose_dispatcher_prompt)"
@@ -345,7 +371,7 @@ echo "FALLBACK:$FALLBACK_REASON"
 
 # --- Dry-run: stop here ---
 if $DRY_RUN; then
-  if [ "$FALLBACK_REASON" = "dispatcher_failed" ] || [ "$FALLBACK_REASON" = "dispatcher_unrecognized" ]; then
+  if [ "$FALLBACK_REASON" != "none" ]; then
     exit 3
   fi
   exit 0

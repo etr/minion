@@ -1,7 +1,7 @@
 # Task Index
 
-**Total tasks:** 9
-**Milestones:** 4
+**Total tasks:** 15
+**Milestones:** 5
 
 ---
 
@@ -12,7 +12,8 @@
 | M1 | Plugin Scaffold & Pi Detection | TASK-001, TASK-002 | Complete |
 | M2 | Inline Invocation | TASK-003, TASK-004 | Complete |
 | M3 | Minion File Support | TASK-005, TASK-006, TASK-007 | Complete |
-| M4 | Polish & Distribution | TASK-008, TASK-009 | Not Started |
+| M4 | Polish & Distribution | TASK-008, TASK-009 | Complete |
+| M5 | Auto-Minion Mode | TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015 | Complete |
 
 ---
 
@@ -27,8 +28,14 @@
 | TASK-005 | Minion file resolution | M3 | S | Complete | TASK-004 |
 | TASK-006 | Frontmatter parsing and Pi flag mapping | M3 | M | Complete | TASK-003 |
 | TASK-007 | Prompt composition and minion-file mode end-to-end | M3 | M | Complete | TASK-005, TASK-006 |
-| TASK-008 | Example minion files and error UX | M4 | M | Not Started | TASK-007 |
+| TASK-008 | Example minion files and error UX | M4 | M | Complete | TASK-007 |
 | TASK-009 | README and marketplace distribution | M4 | S | Complete | TASK-008 |
+| TASK-010 | Auto-minion config format and example auto.md | M5 | S | Complete | TASK-009 |
+| TASK-011 | lib/auto-dispatch.sh bash helper | M5 | L | Complete | TASK-010 |
+| TASK-012 | skills/auto-minion/SKILL.md | M5 | M | Complete | TASK-011 |
+| TASK-013 | COMMAND.md update for auto subcommand | M5 | S | Complete | TASK-012 |
+| TASK-014 | hooks/auto-minion.md pre-message hook | M5 | S | Complete | TASK-012 |
+| TASK-015 | test/test-auto-dispatch.sh tests | M5 | M | Complete | TASK-011 |
 
 ---
 
@@ -50,11 +57,20 @@ M3: Minion File Support                             │
                                                     │
 M4: Polish & Distribution                           │
 ├── TASK-008: Examples + error UX (depends: 007) ───┤
-└── TASK-009: README + marketplace (depends: 008) ──┘
+└── TASK-009: README + marketplace (depends: 008) ──┤
+                                                    │
+M5: Auto-Minion Mode                                │
+├── TASK-010: Config format + example (dep: 009) ───┤
+├── TASK-011: auto-dispatch.sh (dep: 010) ──────────┤
+├── TASK-012: auto-minion skill (dep: 011) ─────────┤
+├── TASK-013: COMMAND.md auto subcommand (dep: 012) ┤
+├── TASK-014: auto-minion hook (dep: 012) ──────────┤
+└── TASK-015: test-auto-dispatch.sh (dep: 011) ─────┘
 ```
 
-**Critical path:** TASK-001 → TASK-003 → TASK-006 → TASK-007 → TASK-008 → TASK-009
+**Critical path:** TASK-001 → TASK-003 → TASK-006 → TASK-007 → TASK-008 → TASK-009 → TASK-010 → TASK-011 → TASK-012 → TASK-013
 
 **Parallel opportunities:**
 - TASK-002 and TASK-003 can run in parallel (both depend only on TASK-001)
 - TASK-005 and TASK-006 can run in parallel (different dependency chains)
+- TASK-013, TASK-014, and TASK-015 can run in parallel (all depend only on TASK-012 or TASK-011)

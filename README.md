@@ -22,7 +22,7 @@ If Pi is not found in your PATH when you run `/minion`, the plugin will offer in
 
 ## Usage
 
-Minion supports two invocation modes: **inline mode** for one-off tasks, and **minion file mode** for reusable delegation patterns.
+Minion supports three invocation modes: **inline mode** for one-off tasks, **minion file mode** for reusable delegation patterns, and **auto mode** for automatic prompt routing.
 
 ### Inline Mode
 
@@ -120,14 +120,112 @@ skills:
   - code-review
 ```
 
+## Auto-Minion Mode
+
+Auto-minion mode routes every prompt to the best model automatically, without requiring `/minion` invocations. When enabled, a pre-message hook intercepts each prompt, classifies it by category, and dispatches to the configured model.
+
+### Enable / Disable / Status
+
+```
+/minion auto on       — Enable auto-minion mode
+/minion auto off      — Disable auto-minion mode
+/minion auto status   — Show current configuration and routing summary
+```
+
+### Configuration
+
+Auto-minion requires a configuration file at `.claude/minions/auto.md` (project-local) or `~/.claude/minions/auto.md` (user-global). Copy the example to get started:
+
+```bash
+mkdir -p .claude/minions
+cp examples/auto.md .claude/minions/auto.md
+```
+
+Then edit it and run `/minion auto on`.
+
+### Config Format
+
+```yaml
+---
+dispatcher:
+  provider: openai
+  model: gpt-4o-mini
+# or: dispatcher: inherit  (Claude classifies inline — no extra Pi call)
+
+default:
+  provider: openai
+  model: gpt-4o
+# or: default: inherit
+
+categories:
+  # Built-in categories (no description needed):
+  code-review:
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+  explanation:
+    provider: openai
+    model: gpt-4o-mini
+  # Custom categories (description required):
+  translation:
+    description: "Translating code between programming languages"
+    provider: google
+    model: gemini-2.5-pro
+  # Route to a stored minion file:
+  security:
+    description: "Security auditing and vulnerability review"
+    minion: security-reviewer
+  # Route back to Claude natively:
+  creative-writing: inherit
+
+show-routing: true
+---
+You are a task classifier. Output ONLY the category name.
+
+Available categories:
+{{categories}}
+
+If no category matches well, output: default
+
+User prompt:
+{{prompt}}
+```
+
+### Built-in Categories
+
+The following category names are recognized without a `description` field:
+
+| Category | Description |
+|----------|-------------|
+| `code-review` | Reviewing, auditing, or analyzing existing code for bugs, style, performance, or security |
+| `code-generation` | Writing new code, functions, classes, modules, or features from scratch |
+| `testing` | Writing, analyzing, or running tests, test fixtures, or test strategies |
+| `documentation` | Writing or improving documentation, comments, READMEs, or API docs |
+| `explanation` | Explaining code, concepts, errors, architecture, or design patterns |
+| `refactoring` | Restructuring or reorganizing existing code without changing behavior |
+
+### Routing Attribution
+
+When `show-routing: true` is set, each response is prefixed with a routing line:
+
+```
+[auto-minion → code-review via anthropic/claude-sonnet-4-20250514]
+```
+
+### Fallback Behavior
+
+- If the dispatcher model fails, auto-minion falls back to the default route automatically.
+- If the default route also fails, the prompt is handled by Claude natively.
+- Use `/minion auto off` to disable auto mode at any time.
+
 ## Examples
 
-The plugin ships with ready-to-use example minion files in the `examples/` directory:
+The plugin ships with ready-to-use example files in the `examples/` directory:
 
 - **`security-reviewer.md`** -- Reviews code for security vulnerabilities using OWASP Top 10 categories. Reports findings by severity with remediation guidance.
 - **`code-explainer.md`** -- Explains code in plain language with step-by-step breakdowns, key design decisions, dependencies, and edge cases.
+- **`auto.md`** -- Example auto-minion configuration with built-in categories, a custom category, and an `inherit` dispatcher.
 
-To use an example, copy it to your minions directory:
+To use a minion file example, copy it to your minions directory:
 
 **Project-local** (for a specific project):
 

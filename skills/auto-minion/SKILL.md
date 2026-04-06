@@ -61,10 +61,12 @@ fi
 >
 > Would you like me to copy the example config to get started?
 
-If the user accepts, copy the example:
+If the user accepts, copy the example. The plugin root is the directory containing this skill (two levels up from `skills/auto-minion/`). Use the `CLAUDE_PLUGIN_DIR` environment variable if available, otherwise resolve relative to the skill file:
+
 ```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 mkdir -p .claude/minions
-cp examples/auto.md .claude/minions/auto.md
+cp "$PLUGIN_ROOT/examples/auto.md" .claude/minions/auto.md
 ```
 
 Then inform the user to edit it and re-run `/minion auto on`.
@@ -85,11 +87,13 @@ bash lib/auto-dispatch.sh --config "<resolved_path>" --prompt "test" --dry-run
 
 #### 2d. Write Marker File
 
-Write the `.auto-enabled` marker file to persist the enabled state. Use the same directory as the resolved config:
+Write the `.auto-enabled` marker file to persist the enabled state. Use the same directory as the resolved config.
+
+First validate that `<resolved_path>` is an absolute path (starts with `/`) and contains no newline characters. If either check fails, abort with an error.
 
 ```bash
 CONFIG_DIR="$(dirname "<resolved_path>")"
-echo "config=<resolved_path>" > "$CONFIG_DIR/.auto-enabled"
+printf 'config=%s\n' "<resolved_path>" > "$CONFIG_DIR/.auto-enabled"
 ```
 
 #### 2e. Show Confirmation
@@ -168,15 +172,17 @@ Extract the `config=` value.
 
 #### 5b. Execute Auto-Dispatch
 
-**Security:** Assign the user prompt to a shell variable using single-quoted assignment to prevent injection:
+Write the user prompt to a temporary file to avoid any shell quoting issues, then pass it via `--prompt` using a `$(cat ...)` substitution:
 
 ```bash
+PROMPT_FILE="$(mktemp)"
+printf '%s' '<user_prompt>' > "$PROMPT_FILE"
 AUTO_CONFIG='<config_path>'
-AUTO_PROMPT='<user_prompt>'
-bash lib/auto-dispatch.sh --config "$AUTO_CONFIG" --prompt "$AUTO_PROMPT"
+bash lib/auto-dispatch.sh --config "$AUTO_CONFIG" --prompt "$(cat "$PROMPT_FILE")"
+rm -f "$PROMPT_FILE"
 ```
 
-If the value contains single quotes, replace each `'` with `'\''` before embedding.
+Pass `<config_path>` using single-quote assignment as shown — config paths are validated as absolute paths with no special characters.
 
 #### 5c. Parse Output
 
