@@ -22,6 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_PATH=""
 USER_PROMPT=""
 DRY_RUN=false
+OVERRIDE_CATEGORY=""
 
 # --- Built-in category descriptions ---
 # These are the dispatcher descriptions used for classification.
@@ -51,6 +52,11 @@ while [ $# -gt 0 ]; do
     --dry-run)
       DRY_RUN=true
       shift
+      ;;
+    --category)
+      [ $# -ge 2 ] || { echo "missing value for --category" >&2; exit 2; }
+      OVERRIDE_CATEGORY="$2"
+      shift 2
       ;;
     -*)
       echo "unknown flag: $1" >&2
@@ -246,6 +252,18 @@ for cat in "${CAT_NAMES[@]}"; do
   fi
 done
 
+# --- Category membership check ---
+# Returns 0 if the given name is a known category (or "default"), 1 otherwise.
+is_valid_category() {
+  local name="$1"
+  [ "$name" = "default" ] && return 0
+  local cat
+  for cat in "${CAT_NAMES[@]}"; do
+    [ "$cat" = "$name" ] && return 0
+  done
+  return 1
+}
+
 # --- Build category list for dispatcher prompt ---
 build_category_list() {
   for cat in "${CAT_NAMES[@]}"; do
@@ -278,7 +296,15 @@ DISPATCHER_PROMPT="$(compose_dispatcher_prompt)"
 ROUTED_CATEGORY=""
 FALLBACK_REASON="none"
 
-if $DISPATCHER_INHERIT; then
+if [ -n "$OVERRIDE_CATEGORY" ]; then
+  # Category provided via --category flag — skip dispatcher entirely
+  if ! is_valid_category "$OVERRIDE_CATEGORY"; then
+    echo "unknown category: $OVERRIDE_CATEGORY" >&2
+    echo "valid categories: ${CAT_NAMES[*]} default" >&2
+    exit 1
+  fi
+  ROUTED_CATEGORY="$OVERRIDE_CATEGORY"
+elif $DISPATCHER_INHERIT; then
   # Dispatcher is "inherit" — output prompt and categories for Claude to classify
   echo "DISPATCHER:inherit"
   echo "CATEGORIES:${CAT_NAMES[*]}"
@@ -293,7 +319,9 @@ if $DISPATCHER_INHERIT; then
   echo "NEEDS_INLINE_CLASSIFICATION"
   exit 0
 else
-  # Invoke Pi with dispatcher model
+  # Invoke Pi with dispatcher model.
+  # USER_PROMPT is embedded in DISPATCHER_PROMPT. Double-quoting prevents word splitting/globbing.
+  # Safety assumes Pi does not shell-evaluate its arguments.
   DISPATCH_OUTPUT=""
   DISPATCH_EXIT=0
   DISPATCH_OUTPUT="$(pi --provider "$DISPATCHER_PROVIDER" --model "$DISPATCHER_MODEL" \
@@ -308,19 +336,7 @@ else
     ROUTED_CATEGORY="$(echo "$DISPATCH_OUTPUT" | grep -v '^[[:space:]]*$' | tail -1 | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
 
     # Validate against known categories
-    VALID=false
-    if [ "$ROUTED_CATEGORY" = "default" ]; then
-      VALID=true
-    else
-      for cat in "${CAT_NAMES[@]}"; do
-        if [ "$cat" = "$ROUTED_CATEGORY" ]; then
-          VALID=true
-          break
-        fi
-      done
-    fi
-
-    if ! $VALID; then
+    if ! is_valid_category "$ROUTED_CATEGORY"; then
       # Unrecognized response — fall back to default
       FALLBACK_REASON="dispatcher_unrecognized"
       ROUTED_CATEGORY="default"

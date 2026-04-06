@@ -4,6 +4,31 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-05 | Auto-minion hook refactor (bash-first pre-message hook)
+
+1. [ ] `major` **security** | `lib/auto-dispatch.sh:277` | template-injection: compose_dispatcher_prompt substitutes USER_PROMPT via bash parameter expansion; if prompt contains `{{categories}}` it won't re-trigger (categories substituted first), but the substitution order is undocumented and fragile for future placeholders -- Neutralize `{{` sequences in USER_PROMPT before substitution or document substitution order
+2. [ ] `major` **security** | `lib/auto-dispatch.sh:429` | path-traversal: validate_identifier allows `.` character; a minion name of `..` passes validation and could produce path traversal in `.claude/minions/../..` -- Reject identifiers matching `^\.+$` or containing `..`
+3. [ ] `major` **architecture** | `specs/architecture.md:57` | diagram-stale: Section 3.1 high-level diagram shows hook→auto-minion skill→auto-dispatch, but actual flow is hook→auto-minion-hook.sh→auto-dispatch -- Update diagram
+4. [ ] `major` **architecture** | `specs/architecture.md:249` | interface-stale: Section 4.7 says "Dispatches to: auto-minion skill" but hook now dispatches to lib/auto-minion-hook.sh -- Rewrite to reflect thin-hook design
+5. [ ] `minor` **code-quality** | `lib/auto-dispatch.sh:299` | exit-code-inconsistency: --category unknown exits 1 instead of 2 (other bad-input paths use exit 2) -- Change to exit 2
+6. [ ] `minor` **code-quality** | `lib/auto-minion-hook.sh:84` | cleanup-inconsistency: inherit block manually rm's temp file; external block uses trap -- Unify on trap pattern
+7. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:257` | naming: is_valid_category() also accepts 'default' sentinel — name is misleading -- Rename to is_valid_route_target()
+8. [ ] `minor` **code-simplifier** | `hooks/auto-minion.md:113` | scope-clarity: PROMPT_FILE scope not documented with inline comment in NEEDS_CLASSIFICATION snippet -- Add comment
+9. [ ] `minor` **code-simplifier** | `hooks/auto-minion.md:96` | doc-mismatch: DISPATCHED section lists SHOW_ROUTING after EXIT but actual output is SHOW_ROUTING before EXIT -- Update doc to match output order
+10. [ ] `minor` **security** | `hooks/auto-minion.md:119` | trust-boundary: IMPORTANT note covers bash safety but doesn't cross-reference Pi trust assumption in auto-dispatch.sh -- Add cross-reference
+11. [ ] `minor` **security** | `lib/auto-dispatch.sh:419` | info-disclosure: HOME path in minion-not-found stderr error -- Suppress or make debug-only
+12. [ ] `minor` **architecture** | `specs/architecture.md:278` | doc-imprecision: SHOW_ROUTING note says "emitted after every STATUS" but not emitted for DISABLED/BYPASS/ERROR -- Qualify the note
+13. [ ] `minor` **architecture** | `hooks/auto-minion.md:5` | unused-tool: "Skill" in allowed-tools unnecessary post-refactor -- Remove from frontmatter
+14. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh:100` | dead-code: run_hook_with_home defined but never called -- Use it or delete it
+15. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh:276` | logic-in-test: HOME fallback test uses inline if/else instead of run_and_check -- Refactor to use helper
+16. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh:546` | naming: _CLEANUP_DIRS holds file paths too -- Rename to _CLEANUP_PATHS
+17. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh` | missing-test: No test for STATUS:NATIVE with FALLBACK:dispatcher_failed
+18. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh` | missing-test: No test for --category 'default' via direct --category flag
+19. [ ] `minor` **housekeeper** | `specs/tasks/M5-auto-minion-mode/TASK-014.md:12` | deliverables-incomplete: Missing lib/auto-minion-hook.sh and test/test-auto-minion-hook.sh -- Update deliverables list
+20. [ ] `minor` **performance** | `lib/auto-dispatch.sh:267` | unnecessary-work: CATEGORY_LIST and DISPATCHER_PROMPT built even when --category bypasses dispatcher -- Move into else branch
+
+---
+
 ## Run: 2026-04-05 | Milestone 5: Auto-Minion Mode (TASK-010 through TASK-015)
 
 1. [ ] `major` **spec-alignment** | `lib/auto-dispatch.sh` | ears-requirement: PRD-AUTO-REQ-016 requires show-routing attribution but auto-dispatch.sh has no SHOW_ROUTING: header in output protocol; skill has no instruction for reading this field from config -- Add SHOW_ROUTING:true|false header to auto-dispatch.sh output and update SKILL.md Step 5c

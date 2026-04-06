@@ -22,7 +22,8 @@ minion/
 │   └── auto-minion.md           # Pre-message hook: intercepts prompts when auto mode is on
 ├── lib/
 │   ├── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation (TASK-003)
-│   └── auto-dispatch.sh         # Bash helper: config parsing + dispatcher + route resolution
+│   ├── auto-dispatch.sh         # Bash helper: config parsing + dispatcher + route resolution
+│   └── auto-minion-hook.sh      # Bash helper: pre-message hook logic (enabled/bypass/dispatch)
 ├── examples/
 │   ├── security-reviewer.md     # Example: code security review minion
 │   ├── code-explainer.md        # Example: plain-language code explainer minion
@@ -30,7 +31,8 @@ minion/
 ├── test/
 │   ├── validate-plugin-structure.sh  # Structure validation
 │   ├── test-readme-and-license.sh   # README and LICENSE validation
-│   └── test-auto-dispatch.sh        # Auto-dispatch tests
+│   ├── test-auto-dispatch.sh        # Auto-dispatch tests
+│   └── test-auto-minion-hook.sh     # Auto-minion hook tests
 ├── CLAUDE.md                    # This file
 ├── README.md                    # User-facing documentation
 ├── LICENSE                      # MIT License
@@ -43,8 +45,9 @@ minion/
 - **COMMAND.md**: Markdown with YAML frontmatter. Frontmatter defines command metadata (name, description, argument-hint, allowed-tools). Body contains instructions for Claude.
 - **SKILL.md**: Markdown with YAML frontmatter. Frontmatter defines skill metadata (name, description, user-invocable). Body contains the skill's execution instructions.
 - **minion-run.sh**: Pure bash. Parses minion file YAML frontmatter, maps to Pi CLI flags, invokes Pi.
-- **auto-dispatch.sh**: Pure bash. Parses auto.md config, invokes dispatcher model via Pi, resolves route, executes routed model.
-- **hooks/auto-minion.md**: Markdown with YAML frontmatter. Pre-message hook that intercepts prompts when auto-minion mode is enabled.
+- **auto-dispatch.sh**: Pure bash. Parses auto.md config, invokes dispatcher model via Pi, resolves route, executes routed model. Supports `--category` flag to skip dispatcher and route directly.
+- **auto-minion-hook.sh**: Pure bash. Pre-message hook logic: checks enabled state, bypass conditions, dispatcher type, and runs full dispatch for external dispatchers. Outputs structured STATUS lines.
+- **hooks/auto-minion.md**: Thin prompt-based hook. Delegates mechanical work to `auto-minion-hook.sh`, only involves Claude for result presentation or inherit-dispatcher classification.
 
 ## Architecture Notes
 
