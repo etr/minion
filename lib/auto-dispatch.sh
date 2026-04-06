@@ -335,7 +335,7 @@ else
   DISPATCH_OUTPUT=""
   DISPATCH_EXIT=0
   DISPATCH_OUTPUT="$(pi --provider "$DISPATCHER_PROVIDER" --model "$DISPATCHER_MODEL" \
-    --no-session --no-tools "$DISPATCHER_PROMPT" 2>/dev/null)" || DISPATCH_EXIT=$?
+    --no-session --no-tools -- "$DISPATCHER_PROMPT" 2>/dev/null)" || DISPATCH_EXIT=$?
 
   if [ $DISPATCH_EXIT -ne 0 ] || [ -z "$DISPATCH_OUTPUT" ]; then
     # Dispatcher failed — fall back to default

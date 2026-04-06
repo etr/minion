@@ -58,7 +58,7 @@ PLUGIN_JSON="$ROOT/.claude-plugin/plugin.json"
 check "plugin.json exists" test -f "$PLUGIN_JSON"
 check "plugin.json is valid JSON" python3 -c "import json; json.load(open('$PLUGIN_JSON'))"
 check_json_field "name is 'minion'" "assert d['name'] == 'minion'"
-check_json_field "version is '0.1.0'" "assert d['version'] == '0.1.0'"
+check_json_field "version follows semver X.Y.Z" "import re; assert re.match(r'^\d+\.\d+\.\d+$', d['version'])"
 check_json_field "description is non-empty" "assert d.get('description', '').strip()"
 check_json_field "author.name is non-empty" "assert d.get('author', {}).get('name', '').strip()"
 

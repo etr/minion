@@ -116,12 +116,13 @@ echo "-- Basics --"
 check "script is executable" test -x "$MINION_RUN"
 
 # --- 2. Correct Pi command with all three params ---
+# The -- sentinel precedes the prompt so Pi never interprets it as a flag.
 echo ""
 echo "-- Argument passing --"
 run_and_check \
   "passes --provider --model and prompt to pi" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
@@ -129,7 +130,7 @@ run_and_check \
 run_and_check \
   "params in different order work" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
   "" \
   -- "$MINION_RUN" --model gpt-4 --prompt hello --provider openai
 
@@ -137,7 +138,7 @@ run_and_check \
 run_and_check \
   "prompt with spaces preserved as single arg" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello world how are you" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello world how are you" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt "hello world how are you"
 
@@ -172,8 +173,10 @@ run_and_check \
   "missing:" \
   -- "$MINION_RUN"
 
-# Verify all three fields appear when no args given (on stderr)
-check_no_args_all_fields() {
+# Verify provider and model are reported when no args given (on stderr).
+# Note: --prompt is no longer required when --claude-skills or --extra-input is present,
+# so it is not reported in the missing list at the provider/model gate.
+check_no_args_provider_model() {
   local stderr
   set +e
   stderr="$("$MINION_RUN" 2>&1 1>/dev/null)"
@@ -182,9 +185,20 @@ check_no_args_all_fields() {
   [ "$exit_code" != "0" ] || return 1
   echo "$stderr" | grep -qF "provider" || return 1
   echo "$stderr" | grep -qF "model" || return 1
-  echo "$stderr" | grep -qF "prompt" || return 1
 }
-check "no arguments output contains provider, model, and prompt" check_no_args_all_fields
+check "no arguments output reports missing provider and model" check_no_args_provider_model
+
+# When provider+model are given but no prompt content, the script still fails with 'missing'
+check_no_prompt_content_fails() {
+  local stderr exit_code
+  set +e
+  stderr="$("$MINION_RUN" --provider openai --model gpt-4 2>&1 1>/dev/null)"
+  exit_code=$?
+  set -e
+  [ "$exit_code" != "0" ] || return 1
+  echo "$stderr" | grep -qF "missing" || return 1
+}
+check "provider+model only (no prompt content) exits with missing" check_no_prompt_content_fails
 
 # --- 10-12. Exit code propagation ---
 echo ""

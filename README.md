@@ -103,21 +103,53 @@ The frontmatter fields map directly to Pi CLI flags. The body (everything after 
 | `no-tools` | `--no-tools` | boolean | No | Disable all tools |
 | `no-session` | `--no-session` | boolean | No | Run without session persistence |
 | `extensions` | `-e <value>` (per entry) | list | No | Extensions to load (one `-e` flag per entry) |
-| `skills` | `--skill <value>` (per entry) | list | No | Skills to enable (one `--skill` flag per entry) |
+| `pi-skills` | `--skill <value>` (per entry) | list | No | Pi skills to enable (one `--skill` flag per entry) |
+| `claude-skills` | (loaded into prompt) | list | No | Claude Code skill names whose bodies are loaded into the prompt as a context preamble. See [Claude skills loading](#claude-skills-loading). |
 | `max-turns` | `--max-turns <value>` | string | No | Maximum number of agent turns |
 | `append-system-prompt` | `--append-system-prompt <value>` | string | No | Text appended to the system prompt |
 | `stream` | `--stream` | boolean | No | Stream output in real time |
 
 Boolean fields (`no-tools`, `no-session`, `stream`) emit the bare CLI flag when set to `true` and are omitted when `false` or absent.
 
-List fields (`extensions`, `skills`) use standard YAML list syntax:
+List fields (`extensions`, `pi-skills`, `claude-skills`) use standard YAML list syntax:
 
 ```yaml
 extensions:
   - filesystem
   - web
-skills:
+pi-skills:
   - code-review
+claude-skills:
+  - hook-development
+  - plugin-dev:command-development
+```
+
+### Claude skills loading
+
+Entries in `claude-skills` are resolved against the local Claude Code skill cache and inlined into the prompt sent to Pi as a `## Available Skills` preamble. Each loaded skill becomes a `### <skill name>` section followed by its (transformed) body, then a `---` separator, then the minion body.
+
+Resolution rules:
+
+- **Absolute path** (`/path/to/SKILL.md`): used as-is. Must point to an existing file.
+- **`plugin:skill` qualified name** (e.g., `plugin-dev:hook-development`): resolved from `~/.claude/plugins/cache/*/<plugin>/*/skills/<skill>/SKILL.md`.
+- **Bare name** (e.g., `code-review`): searched in this order, first hit wins:
+  1. `./.claude/skills/<name>/SKILL.md`
+  2. `~/.claude/skills/<name>/SKILL.md`
+  3. `~/.claude/plugins/cache/*/*/*/skills/<name>/SKILL.md`
+
+Names must match `^[a-zA-Z0-9._-]+$` (path traversal is rejected). If a skill cannot be resolved, the run fails with an actionable error listing the searched locations.
+
+The skill body is transformed before embedding so Claude tool names map to the equivalent generic forms Pi understands (e.g., `Read` tool → `read` tool, `Bash` tool → `bash` tool, `Skill(skill="X")` → `the X workflow`, `${CLAUDE_PLUGIN_ROOT}` → `the plugin directory`).
+
+### Inline override flags
+
+All frontmatter fields can be overridden on the command line. When `--file` is supplied alongside an inline flag, the inline value REPLACES the file's value for that field. List fields (`--extensions`, `--pi-skills`, `--claude-skills`) take comma-separated values and replace the file value entirely (no append).
+
+```
+/minion my-minion --provider anthropic --model claude-opus-4-6
+/minion my-minion --pi-skills code-review,testing
+/minion my-minion --claude-skills hook-development
+/minion --provider openai --model gpt-4o --claude-skills plugin-dev:command-development "Design a new command"
 ```
 
 ## Auto-Minion Mode [Experimental]

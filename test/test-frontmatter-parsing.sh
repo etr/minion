@@ -138,13 +138,14 @@ run_and_check \
   "" \
   -- "$MINION_RUN" --file "$MINFILE"
 
-# Test: --file and --provider are mutually exclusive
+# Test: --file and --provider can now be combined (override semantics).
+# Inline values replace file values for that field.
 run_and_check \
-  "--file and --provider mutually exclusive exits 2" \
-  2 \
+  "--file and --provider may be combined; inline overrides file" \
+  0 \
+  "--provider override" \
   "" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE" --provider openai
+  -- "$MINION_RUN" --file "$MINFILE" --provider override
 
 # Test: --file with nonexistent path
 run_and_check \
@@ -155,10 +156,11 @@ run_and_check \
   -- "$MINION_RUN" --file "/tmp/does-not-exist-$RANDOM.md"
 
 # Test: inline mode still works (regression)
+# The -- sentinel precedes the prompt so Pi never interprets it as a flag.
 run_and_check \
   "inline mode still works" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
@@ -175,10 +177,11 @@ model: claude-3-opus
 ---
 Review this code")"
 
+# The -- sentinel precedes the prompt argument in the final command.
 run_and_check \
   "provider and model map to pi flags" \
   0 \
-  "MOCK_ARGS: --provider anthropic --model claude-3-opus Review this code" \
+  "MOCK_ARGS: --provider anthropic --model claude-3-opus -- Review this code" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE2"
 
