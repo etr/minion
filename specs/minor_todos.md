@@ -4,6 +4,84 @@ Accumulated unexecuted findings from validation runs. Check items off as address
 
 ---
 
+## Run: 2026-04-06 | Validation loop: bash-first hook hardening (5 iterations)
+
+1. [ ] `major` **code-simplifier** | `lib/auto-minion-hook.sh:62` | flag-argument: handle_dispatch_result takes boolean string 'unavail_on_exit3' as 5th arg — split or pass pre-computed attribution string
+2. [ ] `major` **code-simplifier** | `lib/auto-minion-hook.sh:82` | duplication: NEEDS_NATIVE_HANDLING block duplicates SHOW_ROUTING branch pattern; attribution block below handles it more cleanly -- Build routing prefix into variable, call output_context once
+3. [ ] `major` **architecture** | `specs/architecture.md:473` | adr-stale: DR-005 consequences still reference NEEDS_INLINE_CLASSIFICATION and say skill handles inherit classification; hook now handles via claude -p -- Update DR-005 consequences
+4. [ ] `minor` **security** | `lib/auto-minion-hook.sh:213` | dead-code: CATEGORIES variable extracted from dry-run but never used -- Remove or document intended use
+5. [ ] `minor` **code-simplifier** | `lib/auto-minion-hook.sh:73` | echo-vs-printf: Header validation and body extraction (lines 73-79) use echo instead of printf '%s' used elsewhere -- Replace with printf for consistency
+6. [ ] `minor` **code-simplifier** | `test/test-auto-minion-hook.sh:194` | naming: with_mock_auto_dispatch reads like setup function but returns a path -- Rename to make_mock_dispatch_dir
+7. [ ] `minor` **code-quality** | `test/test-auto-minion-hook.sh:596` | heredoc-fragility: Sentinel mock heredoc embeds path via single-quote workaround; path with single quote would break -- Use printf or double-quoted heredoc
+8. [ ] `minor` **architecture** | `specs/architecture.md` | doc-stale: Section 4.7.5 says "parses headers in a while read loop" but implementation uses sed -- Update to reflect sed-based parsing
+9. [ ] `minor` **architecture** | `lib/auto-minion-hook.sh:24` | undocumented: AUTO_DISPATCH_DIR env var test seam not in architecture doc -- Add note to section 4.7.5
+10. [ ] `minor` **housekeeper** | `CLAUDE.md:90` | doc-stale: TASK-014 roadmap entry still says 'hooks/auto-minion.md pre-message hook' -- Update to reflect bash-first hook
+11. [ ] `minor` **spec-alignment** | `lib/auto-dispatch.sh:93` | char-set-mismatch: parse_field validates ^[a-zA-Z0-9_-]+$ (no dot) vs validate_identifier ^[a-zA-Z0-9._-]+$ -- Align or document difference
+12. [ ] `minor` **spec-alignment** | `lib/auto-minion-hook.sh:85` | default-value: SHOW_ROUTING defaults to true but EARS PRD-AUTO-REQ-016 implies opt-in -- Document or change default
+13. [ ] `minor` **performance** | `lib/auto-minion-hook.sh:113` | multi-pass: Three separate sed invocations parse same dry-run output -- Consolidate into single while-read loop
+14. [ ] `minor` **security** | `lib/auto-dispatch.sh:313` | portability: base64 fallback without -w0 may produce line-wrapped output on macOS -- Use `base64 | tr -d '\n'` as fallback
+15. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:434` | comment-mismatch: Comment conflates non-dry-run and dry-run under single 'Finding 5' label -- Split comment
+
+---
+
+## Run: 2026-04-05 | Auto-minion hook refactor (bash-first pre-message hook)
+
+1. [ ] `major` **security** | `lib/auto-dispatch.sh:277` | template-injection: compose_dispatcher_prompt substitutes USER_PROMPT via bash parameter expansion; if prompt contains `{{categories}}` it won't re-trigger (categories substituted first), but the substitution order is undocumented and fragile for future placeholders -- Neutralize `{{` sequences in USER_PROMPT before substitution or document substitution order
+2. [ ] `major` **security** | `lib/auto-dispatch.sh:429` | path-traversal: validate_identifier allows `.` character; a minion name of `..` passes validation and could produce path traversal in `.claude/minions/../..` -- Reject identifiers matching `^\.+$` or containing `..`
+3. [x] `major` **architecture** | `specs/architecture.md:57` | diagram-stale: Section 3.1 high-level diagram shows hook→auto-minion skill→auto-dispatch, but actual flow is hook→auto-minion-hook.sh→auto-dispatch -- Update diagram
+4. [x] `major` **architecture** | `specs/architecture.md:249` | interface-stale: Section 4.7 says "Dispatches to: auto-minion skill" but hook now dispatches to lib/auto-minion-hook.sh -- Rewrite to reflect thin-hook design
+5. [ ] `minor` **code-quality** | `lib/auto-dispatch.sh:299` | exit-code-inconsistency: --category unknown exits 1 instead of 2 (other bad-input paths use exit 2) -- Change to exit 2
+6. [ ] `minor` **code-quality** | `lib/auto-minion-hook.sh:84` | cleanup-inconsistency: inherit block manually rm's temp file; external block uses trap -- Unify on trap pattern
+7. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:257` | naming: is_valid_category() also accepts 'default' sentinel — name is misleading -- Rename to is_valid_route_target()
+8. [x] `minor` **code-simplifier** | `hooks/auto-minion.md:113` | scope-clarity: PROMPT_FILE scope not documented — OBSOLETE: hooks/auto-minion.md deleted in bash-first refactor
+9. [x] `minor` **code-simplifier** | `hooks/auto-minion.md:96` | doc-mismatch: DISPATCHED section order — OBSOLETE: hooks/auto-minion.md deleted in bash-first refactor
+10. [x] `minor` **security** | `hooks/auto-minion.md:119` | trust-boundary: IMPORTANT note — OBSOLETE: hooks/auto-minion.md deleted in bash-first refactor
+11. [ ] `minor` **security** | `lib/auto-dispatch.sh:419` | info-disclosure: HOME path in minion-not-found stderr error -- Suppress or make debug-only
+12. [ ] `minor` **architecture** | `specs/architecture.md:278` | doc-imprecision: SHOW_ROUTING note says "emitted after every STATUS" but not emitted for DISABLED/BYPASS/ERROR -- Qualify the note
+13. [x] `minor` **architecture** | `hooks/auto-minion.md:5` | unused-tool: "Skill" in allowed-tools — OBSOLETE: hooks/auto-minion.md deleted in bash-first refactor
+14. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh:100` | dead-code: run_hook_with_home defined but never called -- Use it or delete it
+15. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh:276` | logic-in-test: HOME fallback test uses inline if/else instead of run_and_check -- Refactor to use helper
+16. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh:546` | naming: _CLEANUP_DIRS holds file paths too -- Rename to _CLEANUP_PATHS
+17. [ ] `minor` **test-quality** | `test/test-auto-minion-hook.sh` | missing-test: No test for STATUS:NATIVE with FALLBACK:dispatcher_failed
+18. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh` | missing-test: No test for --category 'default' via direct --category flag
+19. [x] `minor` **housekeeper** | `specs/tasks/M5-auto-minion-mode/TASK-014.md:12` | deliverables-incomplete: Missing lib/auto-minion-hook.sh and test/test-auto-minion-hook.sh -- Update deliverables list
+20. [ ] `minor` **performance** | `lib/auto-dispatch.sh:267` | unnecessary-work: CATEGORY_LIST and DISPATCHER_PROMPT built even when --category bypasses dispatcher -- Move into else branch
+
+---
+
+## Run: 2026-04-05 | Milestone 5: Auto-Minion Mode (TASK-010 through TASK-015)
+
+1. [ ] `major` **spec-alignment** | `lib/auto-dispatch.sh` | ears-requirement: PRD-AUTO-REQ-016 requires show-routing attribution but auto-dispatch.sh has no SHOW_ROUTING: header in output protocol; skill has no instruction for reading this field from config -- Add SHOW_ROUTING:true|false header to auto-dispatch.sh output and update SKILL.md Step 5c
+2. [ ] `minor` **security** | `lib/auto-dispatch.sh:83` | injection: echo "$BODY" could misinterpret content starting with -n/-e/-E as flags -- Replace with printf '%s\n' "$BODY"
+3. [ ] `minor` **security** | `lib/auto-dispatch.sh:270` | injection: {{prompt}} substitution inserts USER_PROMPT verbatim; user prompt containing {{categories}} could confuse dispatcher LLM (prompt injection, not shell injection) -- Strip or escape {{ and }} from USER_PROMPT before substitution
+4. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:110` | code-structure: is_inherit() duplicates parse_field() sed extraction -- Implement as val="$(parse_field "$1")"; [ "$val" = "inherit" ]
+5. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:311` | naming: VALID variable name too generic -- Rename to CATEGORY_RECOGNIZED
+6. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:302` | code-structure: Dispatch failure condition could use named boolean -- Assign to dispatcher_failed variable
+7. [ ] `minor` **performance** | `lib/auto-dispatch.sh:125` | algorithmic-complexity: validate_identifier uses echo|grep fork per call -- Replace with bash [[ "$val" =~ ^[a-zA-Z0-9._-]+$ ]]
+8. [ ] `minor` **performance** | `lib/auto-dispatch.sh:225` | algorithmic-complexity: Two separate validation loops over CAT_NAMES -- Merge into single pass
+9. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:367` | code-structure: Nested if [ -n "$MINION_FILE" ] check redundant after resolution block -- Remove wrapper, call minion-run.sh directly
+10. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:178` | naming: local_val/local_key prefix inconsistent with rest of script -- Rename to cat_val/field_key
+11. [ ] `minor` **code-simplifier** | `lib/auto-dispatch.sh:423` | code-structure: Bare echo "" to stderr before fallback error message -- Remove or fold into error message
+12. [ ] `minor` **code-quality** | `lib/auto-dispatch.sh:401` | error-handling: FALLBACK_REASON not set for missing-minion fallback path -- Set FALLBACK_REASON="minion_not_found" before default fallback
+13. [ ] `minor` **code-quality** | `lib/auto-dispatch.sh:255` | code-readability: Inherit-dispatcher block mixes exit points; NEEDS_INLINE_CLASSIFICATION intent unclear without reading skill -- Add comment explaining output is consumed by skill layer
+14. [ ] `minor` **spec-alignment** | `lib/auto-dispatch.sh:202` | specification-gap: minion: field in category config undocumented in specs/product_specs.md and examples/auto.md -- Document or confirm intentional scope
+15. [ ] `minor` **architecture** | `skills/auto-minion/SKILL.md:209` | pattern-violation: Step 5d references --category flag that doesn't exist in auto-dispatch.sh -- Remove --category reference, keep only the minion-run.sh direct invocation alternative
+16. [ ] `minor` **architecture** | `hooks/auto-minion.md:52` | interface-contract: Hook uses "Auto-minion dispatch" (capital A) but skill pattern-matches "auto-minion dispatch" (lowercase) -- Normalize casing
+17. [ ] `minor` **architecture** | `commands/minion/COMMAND.md:36` | interface-contract: Command uses "Auto-minion subcommand" (capital A) vs skill expects lowercase -- Normalize casing
+18. [ ] `minor` **architecture** | `.claude-plugin/plugin.json` | adr-violation: plugin.json doesn't reference hooks/auto-minion.md hook -- Verify if auto-discovery applies; if not, add hook entry
+19. [ ] `minor` **housekeeper** | `specs/architecture.md:4` | spec-not-updated: Last updated date 2026-04-02 despite DR-005/DR-006 added 2026-04-05 -- Bump to 2026-04-05
+20. [ ] `minor` **housekeeper** | `specs/product_specs.md:4` | spec-not-updated: Last updated date 2026-04-02 despite section 3.2 added -- Bump to 2026-04-05
+21. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:17` | naming: _CLEANUP_DIRS holds both dirs and files; name/comment says "dirs" -- Rename to _CLEANUP_PATHS
+22. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:667` | excessive-setup: Redundant rm -f after _CLEANUP_DIRS registration -- Remove manual rm -f or remove _CLEANUP_DIRS registration; pick one strategy
+23. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:719` | excessive-setup: MINIONRUN_CALL_FILE allocated but never read in site-2 block -- Remove unused variable
+24. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:347` | multiple-concerns: Four separate subprocess invocations for same routing scenario -- Capture output once and grep multiple patterns
+25. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh:635` | naming: _minion_site1/site2/site3 use opaque positional names -- Rename to describe behavior (e.g., _mock_minionrun_record_args, _mock_minionrun_always_fail)
+26. [ ] `minor` **test-quality** | `test/test-auto-dispatch.sh` | missing-test: No test for category description containing embedded newlines (PRD-AUTO-REQ-014 newline stripping) -- Add fixture with newline in description
+27. [ ] `minor` **spec-alignment** | `hooks/auto-minion.md` | specification-gap: Bypass conditions only check '/' prefix and empty messages; system messages not mentioned -- Document bypass rationale
+28. [ ] `minor` **performance** | `skills/auto-minion/SKILL.md:100` | missing-caching: Steps 2c and 2e each invoke auto-dispatch.sh --dry-run separately for same config -- Run once, capture, reuse
+
+---
+
 ## Run: 2026-04-04 | TASK-009: README and marketplace distribution
 
 1. [ ] `major` **spec-alignment** | `(external repo)` | action-item: Marketplace README entry, install verification, and `/minion` availability check deferred — minion repo has no GitHub remote yet. Complete when `etr/minion` is published.

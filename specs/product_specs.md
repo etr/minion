@@ -103,8 +103,73 @@ Claude Code users want to leverage multiple AI models for specialized tasks with
 
 ---
 
+### 3.2 Auto-Minion Mode
+
+**Problem / outcome**
+Power users want every prompt automatically routed to the best model without manual invocation. A configuration-driven routing layer that classifies prompts by category and dispatches to the appropriate model enables zero-overhead multi-model workflows.
+
+**In scope**
+- Auto-minion enable/disable/status subcommands
+- Category-based routing with a configurable dispatcher model
+- Built-in category set (code-review, code-generation, testing, documentation, explanation, refactoring)
+- Custom categories with user-defined descriptions
+- Per-category routing: inline provider/model, minion file reference, or inherit (Claude native)
+- Default route for unclassified prompts
+- Dispatcher inheritance (Claude classifies inline when dispatcher is "inherit")
+- Routing attribution display when `show-routing` is enabled
+- Pre-message hook for automatic prompt interception
+- Graceful fallback to Claude on dispatcher or model failure
+
+**Out of scope**
+- Concurrent multi-model fan-out
+- Per-prompt routing override
+- Analytics or routing history
+
+**EARS Requirements**
+
+*Enable / Disable*
+
+- `PRD-AUTO-REQ-001` When the user runs `/minion auto on`, then the system shall check Pi availability, resolve the auto-minion config file, validate the config, write an `.auto-enabled` marker file, and confirm the enabled state with a routing summary.
+- `PRD-AUTO-REQ-002` If no auto-minion config is found at `./.claude/minions/auto.md` or `~/.claude/minions/auto.md`, then the system shall inform the user and offer to copy the example config.
+- `PRD-AUTO-REQ-003` When the user runs `/minion auto off`, then the system shall remove all `.auto-enabled` marker files and confirm that auto mode is disabled.
+- `PRD-AUTO-REQ-004` When the user runs `/minion auto status`, then the system shall show whether auto mode is enabled or disabled, and if enabled, show the config path and routing summary.
+
+*Routing*
+
+- `PRD-AUTO-REQ-005` When a prompt arrives and auto mode is enabled, then the system shall invoke the dispatcher model to classify the prompt into a category or "default".
+- `PRD-AUTO-REQ-006` When the dispatcher classifies a prompt, then the system shall route it to the provider/model configured for that category.
+- `PRD-AUTO-REQ-007` When the dispatcher returns an unrecognized response or fails, then the system shall fall back to the default route and use exit code 3 to signal degraded success.
+- `PRD-AUTO-REQ-008` When no default route is configured and the dispatcher returns "default", then the system shall signal the `no_default` fallback condition.
+- `PRD-AUTO-REQ-009` When a category is configured with `minion: <name>`, then the system shall resolve the minion file from `.claude/minions/<name>.md` (project-local) or `~/.claude/minions/<name>.md` (user-global) and execute via `minion-run.sh --file`.
+- `PRD-AUTO-REQ-010` When the routed model fails and a default route is configured, then the system shall try the default route and exit with code 3 on success or 4 if the default also fails.
+- `PRD-AUTO-REQ-011` When a category or the dispatcher is configured as "inherit", then the system shall delegate classification or execution to Claude natively.
+
+*Security*
+
+- `PRD-AUTO-REQ-012` When parsing provider and model values from the config, then the system shall validate each value matches `[a-zA-Z0-9._-]+` and reject configs with invalid values.
+- `PRD-AUTO-REQ-013` When parsing minion names from the config, then the system shall validate each name matches `[a-zA-Z0-9._-]+` to prevent path traversal.
+- `PRD-AUTO-REQ-014` When building the dispatcher prompt, then the system shall strip newlines from category descriptions and truncate them to 200 characters.
+- `PRD-AUTO-REQ-015` When writing the `.auto-enabled` marker file, then the system shall use `printf` (not `echo`) and validate that the config path is absolute and contains no newline characters.
+
+*Attribution*
+
+- `PRD-AUTO-REQ-016` When `show-routing: true` is set in the config, then the system shall prefix the model's output with a routing attribution line showing the category, provider, and model used.
+
+**Acceptance criteria**
+- `/minion auto on` with valid config enables mode and shows routing summary
+- `/minion auto off` removes marker files and confirms
+- `/minion auto status` shows current state
+- Every prompt is classified and routed without manual invocation when mode is on
+- Dispatcher failure routes to default gracefully
+- Provider/model with shell metacharacters are rejected at config parse time
+- Path-traversal minion names rejected
+- Attribution shown when show-routing is enabled
+
+---
+
 ## 4) Traceability
 - `PRD-MIN-REQ-001` through `PRD-MIN-REQ-015` — Delegate to Minion feature (Eng)
+- `PRD-AUTO-REQ-001` through `PRD-AUTO-REQ-016` — Auto-Minion Mode feature (Eng)
 
 ---
 

@@ -14,16 +14,25 @@ minion/
 │   └── minion/
 │       └── COMMAND.md           # /minion command (thin dispatcher)
 ├── skills/
-│   └── delegate-to-minion/
-│       └── SKILL.md             # Core execution logic
+│   ├── delegate-to-minion/
+│   │   └── SKILL.md             # Core execution logic
+│   └── auto-minion/
+│       └── SKILL.md             # Auto-minion mode: on/off/status + dispatch
+├── hooks/
+│   └── hooks.json               # Shell-based UserPromptSubmit hook registration
 ├── lib/
-│   └── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation (TASK-003)
+│   ├── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation (TASK-003)
+│   ├── auto-dispatch.sh         # Bash helper: config parsing + dispatcher + route resolution
+│   └── auto-minion-hook.sh      # Bash helper: pre-message hook logic (enabled/bypass/dispatch)
 ├── examples/
 │   ├── security-reviewer.md     # Example: code security review minion
-│   └── code-explainer.md        # Example: plain-language code explainer minion
+│   ├── code-explainer.md        # Example: plain-language code explainer minion
+│   └── auto.md                  # Example: auto-minion configuration
 ├── test/
 │   ├── validate-plugin-structure.sh  # Structure validation
-│   └── test-readme-and-license.sh   # README and LICENSE validation
+│   ├── test-readme-and-license.sh   # README and LICENSE validation
+│   ├── test-auto-dispatch.sh        # Auto-dispatch tests
+│   └── test-auto-minion-hook.sh     # Auto-minion hook tests
 ├── CLAUDE.md                    # This file
 ├── README.md                    # User-facing documentation
 ├── LICENSE                      # MIT License
@@ -36,12 +45,16 @@ minion/
 - **COMMAND.md**: Markdown with YAML frontmatter. Frontmatter defines command metadata (name, description, argument-hint, allowed-tools). Body contains instructions for Claude.
 - **SKILL.md**: Markdown with YAML frontmatter. Frontmatter defines skill metadata (name, description, user-invocable). Body contains the skill's execution instructions.
 - **minion-run.sh**: Pure bash. Parses minion file YAML frontmatter, maps to Pi CLI flags, invokes Pi.
+- **auto-dispatch.sh**: Pure bash. Parses auto.md config, invokes dispatcher model via Pi, resolves route, executes routed model. Supports `--category` flag to skip dispatcher and route directly.
+- **auto-minion-hook.sh**: Pure bash. Shell-based UserPromptSubmit hook: checks enabled state, bypass conditions, classifies (external dispatcher or `claude -p` for inherit), executes routed model, outputs JSON with `additionalContext`. Requires `jq`.
+- **hooks/hooks.json**: Registers `auto-minion-hook.sh` as a `UserPromptSubmit` shell hook. Replaces the former prompt-based `hooks/auto-minion.md`.
 
 ## Architecture Notes
 
-### Two Invocation Modes
+### Three Invocation Modes
 1. **Inline**: `/minion --provider openai --model gpt-4 "prompt"` - all params on command line
 2. **Minion file**: `/minion security-reviewer [extra input]` - params from stored file
+3. **Auto mode**: `/minion auto on|off|status` - automatic category-based prompt routing
 
 ### Design Principles
 - **Thin command + skill** (DR-004): The `/minion` command is a thin argument parser that dispatches to the `delegate-to-minion` skill. All execution logic lives in the skill.
@@ -68,3 +81,11 @@ minion/
 - TASK-007: Prompt composition and execution
 - TASK-008: Example minion files and error UX
 - TASK-009: README and marketplace distribution
+
+### Milestone 5: Auto-Minion Mode
+- TASK-010: Auto-minion config format and example auto.md
+- TASK-011: lib/auto-dispatch.sh bash helper
+- TASK-012: skills/auto-minion/SKILL.md
+- TASK-013: COMMAND.md update for auto subcommand
+- TASK-014: hooks/auto-minion.md pre-message hook
+- TASK-015: test/test-auto-dispatch.sh tests

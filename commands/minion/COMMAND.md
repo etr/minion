@@ -1,7 +1,7 @@
 ---
 name: minion
-description: Delegate a task to any AI model via Pi CLI. Supports inline mode (--provider X --model Y "prompt") and minion-file mode (name-or-path [extra input]).
-argument-hint: "--provider <provider> --model <model> \"<prompt>\"  OR  <minion-name> [extra input]"
+description: Delegate a task to any AI model via Pi CLI. Supports inline mode (--provider X --model Y "prompt"), minion-file mode (name-or-path [extra input]), and auto mode (auto on/off/status).
+argument-hint: "--provider <provider> --model <model> \"<prompt>\"  OR  <minion-name> [extra input]  OR  auto on|off|status"
 allowed-tools: ["Bash", "Read", "Glob", "Grep", "Skill"]
 ---
 
@@ -15,8 +15,27 @@ Examine the user's arguments to determine the invocation mode.
 
 ### Detection Rule
 
-If the arguments contain the `--provider` or `--model` flag, this is **inline mode**.
+If the first argument is `auto`, this is **auto-minion mode**.
+Otherwise, if the arguments contain the `--provider` or `--model` flag, this is **inline mode**.
 Otherwise, this is **minion file mode**.
+
+### Auto-Minion Mode Extraction
+
+If the first argument is `auto`, extract the subcommand from the second argument:
+
+1. **subcommand** — the second argument: `on`, `off`, or `status`. If absent, treat as missing.
+
+## Auto-Minion Dispatch
+
+If auto-minion mode was detected, invoke the `auto-minion` skill:
+
+```
+Skill(skill="auto-minion")
+```
+
+State the parsed results: "Auto-minion subcommand: `<on|off|status>`."
+
+Then stop. Do not proceed to inline or minion file dispatch.
 
 ### Inline Mode Extraction
 
@@ -37,7 +56,9 @@ Extract the following from the arguments:
 
 ## Dispatch
 
-Invoke the `delegate-to-minion` skill and pass the parsed parameters as structured context.
+**If auto-minion mode**: dispatch was already handled above. Do not proceed further.
+
+**If inline or minion file mode**: invoke the `delegate-to-minion` skill and pass the parsed parameters as structured context.
 
 Call the Skill tool:
 ```
@@ -82,4 +103,24 @@ Add extra input to supplement the minion's base prompt:
 
 ```
 /minion code-reviewer "focus on error handling in lib/parser.sh"
+```
+
+### Auto-Minion Mode
+
+Enable automatic prompt routing:
+
+```
+/minion auto on
+```
+
+Check status:
+
+```
+/minion auto status
+```
+
+Disable:
+
+```
+/minion auto off
 ```

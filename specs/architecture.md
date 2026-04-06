@@ -45,22 +45,26 @@ The plugin is distributed via the groundwork marketplace at `etr/groundwork-mark
 ```
 User
   |
-  v
-/minion command (COMMAND.md)
-  |  parses arguments (inline vs minion-file mode)
-  v
-delegate-to-minion skill (SKILL.md)
-  |  handles UX: mode detection, error messages, Pi install offer
-  |  reads minion file if mode 2
-  v
-lib/minion-run.sh
-  |  parses YAML frontmatter -> Pi CLI flags
-  |  composes prompt (base + caller input)
-  |  invokes: pi --provider X --model Y ... "prompt"
-  v
-Pi CLI (external)
-  |  dispatches to provider/model
-  v
+  +-- explicit invocation (/minion ...) ─────────────────────┐
+  |                                                          |
+  +-- auto mode (every prompt) ──────────────────────────────┤
+       |                                                     |
+       v                                                     v
+hooks/hooks.json (UserPromptSubmit)             /minion command (COMMAND.md)
+  |  shell hook runs auto-minion-hook.sh          |  parses arguments
+  |  when .auto-enabled marker exists             |  (inline / minion-file / auto subcommand)
+  v                                               v
+lib/auto-minion-hook.sh               delegate-to-minion skill (SKILL.md)
+  |  classify + dispatch in bash          |  UX, error handling, Pi install flow
+  |  (claude -p for inherit dispatcher)   |
+  v                                       v
+lib/auto-dispatch.sh                  lib/minion-run.sh
+  |  config parsing, dispatcher           |  frontmatter -> Pi CLI flags
+  |  invocation, route resolution         |  prompt composition + Pi invocation
+  v                                       v
+Pi CLI (external)                     Pi CLI (external)
+  |  dispatches to provider/model         |  dispatches to provider/model
+  v                                       v
 Output captured by Bash tool -> returned to Claude's context
 ```
 
@@ -70,8 +74,13 @@ Output captured by Bash tool -> returned to Claude's context
 |-----------|---------------|------------|
 | `/minion` command | User-facing entry point, argument parsing | Markdown (COMMAND.md) |
 | `delegate-to-minion` skill | Execution logic, UX, error handling, Pi install flow, return Pi output to Claude's context | Markdown (SKILL.md) |
+| `auto-minion` skill | Auto mode enable/disable/status UX, dispatch to auto-dispatch.sh, fallback to Claude | Markdown (SKILL.md) |
+| `hooks/hooks.json` | Shell-based UserPromptSubmit hook registration | JSON |
+| `auto-minion-hook.sh` | Shell-based hook: enabled check, bypass, dispatch (external + inherit via `claude -p`), JSON I/O | Bash |
 | `minion-run.sh` | Minion file parsing, frontmatter-to-CLI mapping, Pi invocation | Bash |
+| `auto-dispatch.sh` | Auto.md config parsing, dispatcher invocation, route resolution, routed model execution | Bash |
 | Minion files | Reusable delegation definitions (frontmatter + prompt) | Markdown with YAML frontmatter |
+| Auto config (auto.md) | Category routing rules, dispatcher config, prompt template | Markdown with YAML frontmatter |
 | Pi CLI | External multi-model agent runner | External dependency |
 
 ---
@@ -185,6 +194,102 @@ Review the following code for OWASP Top 10 vulnerabilities.
 
 **Related Requirements:** PRD-MIN-REQ-006, PRD-MIN-REQ-007, PRD-MIN-REQ-008, PRD-MIN-REQ-009
 
+### 4.5 `auto-minion` Skill
+
+**Responsibility:** UX layer for auto-minion mode — enable/disable/status subcommands and prompt dispatch with fallback to Claude.
+
+**Technology:** Claude Code skill (SKILL.md)
+
+**Interfaces:**
+- Receives: subcommand context from `/minion auto` command or auto-minion hook
+- Calls: `lib/auto-dispatch.sh` via Bash tool
+- Writes/reads: `.auto-enabled` marker file in minions directory
+
+**Key Design Notes:**
+- Enable flow: check Pi, resolve config, validate via dry-run, write marker with `printf`, show summary
+- Config path validated as absolute path with no newline characters before writing marker
+- Example config reference uses plugin-relative path resolution (not hardcoded relative path)
+- Dispatch uses temp-file pattern for user prompt: `printf '%s' prompt > tmpfile; cat tmpfile`
+- Fallback: exit 3 = degraded success (use default route), exit 4 = all routes failed (Claude handles natively)
+
+**Related Requirements:** PRD-AUTO-REQ-001 through PRD-AUTO-REQ-016
+
+### 4.6 `lib/auto-dispatch.sh`
+
+**Responsibility:** Mechanical layer for auto-minion dispatch — config parsing, dispatcher invocation, route resolution, and execution.
+
+**Technology:** Bash
+
+**Interfaces:**
+- Input: `--config <path>`, `--prompt <text>`, optional `--dry-run`, optional `--category <name>`
+- Output: structured header lines + `---` separator + routed model output
+- Exit codes: 0 (success), 1 (validation error), 2 (unknown flag), 3 (fallback used), 4 (all routes failed)
+- `--category <name>`: when provided, skips the dispatcher entirely and routes directly to the named category (or `default`). Used by the hook when Claude itself is the dispatcher (`inherit` mode).
+
+**Key Design Notes:**
+- Config parsing handles `dispatcher`, `default`, `categories` blocks with nested YAML
+- All provider/model values validated against `^[a-zA-Z0-9._-]+$` at parse time (PRD-AUTO-REQ-012)
+- All minion names validated against `^[a-zA-Z0-9._-]+$` to prevent path traversal (PRD-AUTO-REQ-013)
+- Category descriptions sanitized: newlines stripped, truncated to 200 chars (PRD-AUTO-REQ-014)
+- `compose_dispatcher_prompt` uses `printf '%s\n'` (not echo) for safe output (PRD-AUTO-REQ-015)
+- `inherit` form supported for dispatcher, default, and per-category
+- Route execution failure tries default fallback; exits 3 (degraded) or 4 (all failed)
+
+**Related Requirements:** PRD-AUTO-REQ-005 through PRD-AUTO-REQ-015
+
+### 4.7 `hooks/hooks.json`
+
+**Responsibility:** Register a shell-based `UserPromptSubmit` hook that runs `lib/auto-minion-hook.sh` on every user message.
+
+**Technology:** Claude Code hooks.json (JSON)
+
+**Interfaces:**
+- Trigger: `UserPromptSubmit` event (every user message)
+- Runs: `bash ${CLAUDE_PLUGIN_ROOT}/lib/auto-minion-hook.sh` with 300s timeout
+
+**Key Design Notes:**
+- Replaces the prompt-based `hooks/auto-minion.md` — all dispatch logic now runs in bash, saving tokens
+- Claude is only involved when the hook outputs `additionalContext` (to present results or handle native routes)
+- When disabled or bypassed, the script exits 0 with no output — zero token cost
+
+**Related Requirements:** PRD-AUTO-REQ-005
+
+### 4.7.5 `lib/auto-minion-hook.sh`
+
+**Responsibility:** Shell-based hook logic — enabled check, bypass detection, config parsing, classification (external or inherit via `claude -p`), route execution, and JSON output formatting.
+
+**Technology:** Bash (requires `jq` for JSON I/O)
+
+**Interfaces:**
+- Input: JSON on stdin (`{"hook_event_name": "UserPromptSubmit", "user_prompt": "...", ...}`)
+- Output: JSON on stdout (`{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "..."}}`)
+- When disabled/bypassed: exit 0 with no output
+
+**Key Design Notes:**
+- Config path read from `.auto-enabled` marker (project-local first, then `$HOME`-scoped)
+- Config path validated as an absolute path before use (outputs error context JSON on failure)
+- Frontmatter parsed once into `$FRONTMATTER` variable; `show-routing` and `dispatcher` extracted via `sed`
+- For `dispatcher: inherit`: calls `auto-dispatch.sh --dry-run` to get categories/prompt, then `claude -p` to classify, then `auto-dispatch.sh --category` to execute
+- For external dispatcher: calls `auto-dispatch.sh` for full dispatch, parses headers in a `while read` loop
+- additionalContext uses XML-style tags: `<auto-minion-result>` (external model output), `<auto-minion-routing>` (native handling), `<auto-minion-error>` (errors)
+- All error paths output context telling Claude to handle natively or show the error
+
+**Related Requirements:** PRD-AUTO-REQ-005, PRD-AUTO-REQ-012
+
+### 4.8 Auto Config (`auto.md`)
+
+**Responsibility:** Store category routing rules and dispatcher configuration for auto-minion mode.
+
+**Technology:** Markdown with YAML frontmatter
+
+**Format:** YAML frontmatter with `dispatcher`, `default`, `categories`, `show-routing` blocks; body is the dispatcher prompt template with `{{categories}}` and `{{prompt}}` placeholders.
+
+**Resolution paths (in order):**
+1. `./.claude/minions/auto.md` (project-local)
+2. `~/.claude/minions/auto.md` (user-global)
+
+**Related Requirements:** PRD-AUTO-REQ-001, PRD-AUTO-REQ-002
+
 ---
 
 ## 5) Plugin Structure
@@ -192,18 +297,31 @@ Review the following code for OWASP Top 10 vulnerabilities.
 ```
 minion/
 ├── .claude-plugin/
-│   └── plugin.json           # Plugin manifest (name, version, description)
+│   └── plugin.json              # Plugin manifest (name, version, description)
 ├── commands/
 │   └── minion/
-│       └── COMMAND.md         # /minion command definition with argument parsing
+│       └── COMMAND.md           # /minion command: inline, minion-file, auto subcommand
 ├── skills/
-│   └── delegate-to-minion/
-│       └── SKILL.md           # Core execution logic and UX
+│   ├── delegate-to-minion/
+│   │   └── SKILL.md             # Core delegation logic and UX
+│   └── auto-minion/
+│       └── SKILL.md             # Auto-minion: on/off/status + dispatch UX
+├── hooks/
+│   └── hooks.json               # Shell-based UserPromptSubmit hook registration
 ├── lib/
-│   └── minion-run.sh          # Bash helper: frontmatter parsing + Pi invocation
+│   ├── minion-run.sh            # Bash helper: frontmatter parsing + Pi invocation
+│   ├── auto-dispatch.sh         # Bash helper: config parsing + dispatcher + routing
+│   └── auto-minion-hook.sh      # Bash helper: shell-side hook logic (enabled check, bypass, dispatch)
 ├── examples/
-│   └── security-reviewer.md   # Example minion file
-├── CLAUDE.md                  # Plugin development notes
+│   ├── security-reviewer.md     # Example minion file
+│   ├── code-explainer.md        # Example minion file
+│   └── auto.md                  # Example auto-minion configuration
+├── test/
+│   ├── validate-plugin-structure.sh
+│   ├── test-readme-and-license.sh
+│   ├── test-auto-dispatch.sh    # Tests for auto-dispatch.sh
+│   └── test-auto-minion-hook.sh # Tests for auto-minion-hook.sh
+├── CLAUDE.md                    # Plugin development notes
 ├── LICENSE
 └── README.md
 ```
@@ -332,6 +450,47 @@ No async messaging, no queues, no inter-process communication beyond the Pi subp
 **Consequences:**
 - Command is a thin dispatcher; skill contains all logic
 - Both conversational and explicit invocation paths work
+
+### DR-005: Dispatcher Model Architecture
+
+**Status:** Accepted
+**Date:** 2026-04-05
+**Context:** Auto-minion needs a way to classify user prompts into routing categories. Two main architectures were considered.
+
+**Options Considered:**
+1. **External Dispatcher Model** — Use a configurable Pi-invoked model to classify prompts. Output is parsed to determine the route.
+   - Pros: Flexible, any model can classify; classifier can be swapped without code changes
+   - Cons: Extra Pi call adds latency; classifier can fail or return unexpected output
+2. **Claude Inline Classification** — Claude (the host model) classifies prompts using the category list embedded in the skill.
+   - Pros: No extra Pi call, zero latency overhead
+   - Cons: Uses Claude Code tokens; not separable from the host LLM
+
+**Decision:** Both, with `inherit` as escape hatch
+
+**Rationale:** Externalizing the dispatcher gives users full control over the classifier model and cost. `dispatcher: inherit` lets users choose Claude inline classification when they prefer zero extra Pi calls. The two-layer architecture (external dispatcher + inherit fallback) keeps the system flexible without forcing users into a single model.
+
+**Consequences:**
+- `auto-dispatch.sh` must handle the `inherit` case by signaling `NEEDS_INLINE_CLASSIFICATION`
+- The skill must handle inline classification when `inherit` is set
+- Dispatcher failure must gracefully fall back to the default route (exit 3)
+
+### DR-006: Input Validation Strategy for Auto-Dispatch
+
+**Status:** Accepted
+**Date:** 2026-04-05
+**Context:** `auto-dispatch.sh` builds file paths and shell arguments from user-controlled YAML config values. Injection risks exist at: provider/model values (passed to Pi as CLI args), minion names (used in file path construction), and category descriptions (embedded in the dispatcher prompt).
+
+**Decision:** Allowlist validation for identifiers; sanitization for free-text fields
+
+**Rationale:**
+- Provider, model, and minion name values have a well-defined safe character set (`[a-zA-Z0-9._-]+`). Allowlist validation is cheap, deterministic, and fails closed.
+- Category descriptions are free-text (prompt injection risk against the dispatcher). Stripping newlines and limiting to 200 chars limits the blast radius without rejecting valid descriptions.
+- Shell quoting in bash (double-quoted `"$VAR"`) prevents word splitting; the allowlist adds a second defense-in-depth layer.
+
+**Consequences:**
+- Provider/model values with spaces, semicolons, etc. are rejected at parse time with a clear error message
+- Minion names with path separators (`/`, `..`) are rejected
+- Description truncation may shorten very long descriptions; users should keep descriptions concise
 
 ---
 
