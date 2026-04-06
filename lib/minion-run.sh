@@ -278,7 +278,11 @@ resolve_claude_skill() {
       [ -f "$entry" ] || return 1
       # Canonicalize and verify the path is under an allowed root.
       local canonical
-      canonical="$(realpath -m "$entry" 2>/dev/null || readlink -f "$entry" 2>/dev/null || echo "$entry")"
+      canonical="$(realpath -m "$entry" 2>/dev/null || readlink -f "$entry" 2>/dev/null)"
+      if [ -z "$canonical" ]; then
+        echo "cannot canonicalize claude-skill path: realpath/readlink unavailable" >&2
+        return 1
+      fi
       local allowed=0
       for allowed_root in \
         "$(realpath -m "./.claude/skills" 2>/dev/null || echo "./.claude/skills")" \

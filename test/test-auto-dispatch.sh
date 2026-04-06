@@ -952,6 +952,53 @@ run_and_check "--category default uses correct model for default route" 0 "MODEL
 
 # ============================================================
 echo ""
+echo "=== Dispatcher -- Sentinel (injection hardening) ==="
+# ============================================================
+# The Pi CLI dispatcher invocation must include -- before $DISPATCHER_PROMPT
+# so that a user prompt beginning with -- is not interpreted as a Pi flag.
+
+# A mock pi that records its raw args to a sentinel file (null-delimited).
+_SENTINEL_ARGS_FILE="$(mktemp)"
+_CLEANUP_DIRS+=("$_SENTINEL_ARGS_FILE")
+
+_sentinel_args_pi_body="#!/usr/bin/env bash
+# Record each argument as a separate line to a file so we can inspect arg boundaries.
+printf '%s\n' \"\$@\" > '$_SENTINEL_ARGS_FILE'
+# Still echo MOCK_ARGS for existing tests that may depend on it.
+echo \"MOCK_ARGS: \$*\"
+if [ -n \"\${MOCK_PI_STDOUT:-}\" ]; then
+  echo \"\$MOCK_PI_STDOUT\"
+fi
+exit \"\${MOCK_PI_EXIT_CODE:-0}\""
+
+export MOCK_PI_STDOUT="code-review"
+export MOCK_PI_EXIT_CODE=0
+unset MOCK_PI_STDERR 2>/dev/null || true
+
+_sentinel_args_test() {
+  # Run dry-run so only the dispatcher pi call is made (no minion-run.sh call).
+  run_and_check "dispatcher invokes pi with ROUTE:code-review when prompt starts with --" 0 "ROUTE:code-review" "" \
+    -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "--no-tools injected arg" --dry-run
+
+  # Inspect the recorded args: -- must appear as a standalone argument before the prompt.
+  local args_content
+  args_content="$(cat "$_SENTINEL_ARGS_FILE" 2>/dev/null || echo MISSING)"
+  # Check that '--' appears as a standalone line (its own argument)
+  if echo "$args_content" | grep -qxF -- '--'; then
+    echo "  PASS: dispatcher pi call includes -- sentinel as standalone argument"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: dispatcher pi call is missing -- sentinel before prompt"
+    echo "    recorded args (one per line): $args_content"
+    FAIL=$((FAIL + 1))
+  fi
+  rm -f "$_SENTINEL_ARGS_FILE"
+}
+
+with_mock_pi "$_sentinel_args_pi_body" _sentinel_args_test
+
+# ============================================================
+echo ""
 echo "=== Summary ==="
 # ============================================================
 
