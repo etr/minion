@@ -20,9 +20,18 @@ trap 'rm -rf "$MOCK_DIR"' EXIT
 
 cat > "$MOCK_DIR/pi" <<'MOCKEOF'
 #!/usr/bin/env bash
-# Echo all arguments so tests can verify what was passed.
-# We use a delimiter that won't appear in args so we can separate flags from prompt.
-echo "MOCK_ARGS: $*"
+# Echo received args + stdin (the prompt is now delivered via stdin).
+# Format: "MOCK_ARGS: <flags> | STDIN: <prompt>" when stdin is non-empty,
+#         "MOCK_ARGS: <flags>" otherwise.
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 exit 0
 MOCKEOF
 chmod +x "$MOCK_DIR/pi"
@@ -859,37 +868,48 @@ run_and_check \
   -- "$MINION_RUN" --file "$MINFILE_REGRESSION"
 
 # ============================================================
-# Phase 8: Security — -- sentinel before prompt (Finding 1)
+# Phase 8: Security — flag-injection defang via stdin delivery
 # ============================================================
 echo ""
-echo "-- -- sentinel before composed prompt --"
+echo "-- prompt delivered via stdin (flag-injection defang) --"
 
-# 8a. A prompt starting with --no-tools is passed as literal text, not a flag.
-# The fake-pi mock echoes all args; without --, pi would interpret --no-tools as a flag.
-# With --, it appears as a literal argument in the echo output.
+# 8a. A prompt starting with --no-tools must be passed as literal text, not a flag.
+# Pi CLI does not support a "--" end-of-options sentinel — it rejects bare "--" as
+# an unknown option — so the prompt is delivered via stdin instead. Stdin content
+# is never parsed as argv, so a prompt beginning with --no-tools cannot be
+# misinterpreted as a Pi flag.
+#
+# The mock echoes "MOCK_ARGS: <flags> | STDIN: <prompt>". This test verifies:
+#   1. The flag-like prompt body appears in the STDIN portion (not argv)
+#   2. The flag-like prompt body does NOT appear in the args portion (before "| STDIN:")
 MINFILE_SENTINEL="$(create_minion_file "---
 provider: openai
 model: gpt-4
 ---
 --no-tools is the prompt body")"
 
-check_sentinel_literal_prompt() {
+check_stdin_defang() {
   local stdout
   set +e
   stdout="$("$MINION_RUN" --file "$MINFILE_SENTINEL" 2>/dev/null)"
   local rc=$?
   set -e
   [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
-  # The -- sentinel must appear immediately before the prompt argument in the args list.
-  # The mock echoes: "MOCK_ARGS: ...flags... -- --no-tools is the prompt body"
-  # We use grep -F with a literal string; use grep -e to avoid -- being parsed as options.
-  if ! echo "$stdout" | grep -qFe "-- --no-tools is the prompt body"; then
-    echo "        stdout does not contain '-- --no-tools is the prompt body'"
+  # The prompt must arrive via STDIN, not argv.
+  if ! echo "$stdout" | grep -qFe "STDIN: --no-tools is the prompt body"; then
+    echo "        stdout does not contain 'STDIN: --no-tools is the prompt body'"
     echo "        stdout was: $stdout"
     return 1
   fi
+  # The args portion (everything before "| STDIN:") must NOT contain the flag-like prompt.
+  local args_portion
+  args_portion="$(echo "$stdout" | head -1 | sed 's/ | STDIN:.*//')"
+  if echo "$args_portion" | grep -qFe "--no-tools is the prompt body"; then
+    echo "        args portion unexpectedly contains the flag-like prompt: $args_portion"
+    return 1
+  fi
 }
-check "prompt starting with --no-tools is preceded by -- sentinel" check_sentinel_literal_prompt
+check "flag-like prompt is delivered via stdin, not argv" check_stdin_defang
 
 # ============================================================
 # Phase 9: Security — absolute-path confinement (Finding 2)

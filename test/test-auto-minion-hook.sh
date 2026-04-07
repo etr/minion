@@ -34,7 +34,16 @@ MOCK_DIR="$(mktemp -d)"
 _CLEANUP_DIRS+=("$MOCK_DIR")
 
 _STANDARD_PI_BODY='#!/usr/bin/env bash
-echo "MOCK_ARGS: $*"
+# Mock pi: echoes args + stdin (the prompt is now delivered via stdin).
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 if [ -n "${MOCK_PI_STDERR:-}" ]; then
   echo "$MOCK_PI_STDERR" >&2
 fi

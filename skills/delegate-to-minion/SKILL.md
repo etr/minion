@@ -215,41 +215,56 @@ test -f lib/minion-run.sh
 
 If this fails, the working directory is not the plugin root. Inform the user that the plugin's `lib/minion-run.sh` could not be found and suggest they run the command from the plugin directory.
 
-**Security:** To prevent shell injection, assign each user-supplied value to a shell variable using single quotes, then pass the variables to the script. Single-quoted assignments prevent `$(...)` command substitution, backtick expansion, and variable expansion. Never interpolate user values directly into double-quoted strings.
+**Security and invocation form:** Pass every user-supplied value **directly as a single-quoted argument to its flag**, on a single `bash lib/minion-run.sh ...` command. Single quotes make each value a literal token — no `$(...)` substitution, no backtick expansion, no variable expansion. If a value itself contains a single quote, close-quote/escape/reopen by replacing each `'` with `'\''` inside the single-quoted literal.
+
+**Do NOT** use the `VAR=value command` form or split the call across "assign shell var, then expand" lines. A common failure mode is collapsing a multi-line assignment pattern into a single-line env-var prefix like `MINION_PROVIDER='openai' MINION_MODEL='gpt-4' bash lib/minion-run.sh` — this sets environment variables for the process but passes **no flags**, so `minion-run.sh` exits with `missing: provider, model`. The script only reads its flags; it does not consult environment variables.
+
+#### Inline Mode Execution
+
+When using inline mode, pass provider, model, and prompt as single-quoted flag values on one line:
+
+```bash
+bash lib/minion-run.sh --provider '<provider>' --model '<model>' --prompt '<prompt>'
+```
+
+Concrete example for `provider=openrouter`, `model=minimax/minimax-m2.7`, `prompt=Summarise the README`:
+
+```bash
+bash lib/minion-run.sh --provider 'openrouter' --model 'minimax/minimax-m2.7' --prompt 'Summarise the README'
+```
+
+**Quoting rules:** The `<provider>` and `<model>` values are typically simple identifiers (e.g., `openai`, `gpt-4`) and can be single-quoted as-is. For `<prompt>`, if the value contains a single quote, replace each `'` with `'\''` before embedding it inside the single-quoted literal — e.g. a prompt of `it's broken` becomes `'it'\''s broken'`.
 
 #### File Mode Execution
 
-When using minion file mode, pass the resolved absolute path from Step 4 to `minion-run.sh` via `--file`, and any caller-provided extra input via `--extra-input`:
+When using minion file mode, pass the resolved absolute path from Step 4 via `--file`, and any caller-provided extra input via `--extra-input`. Everything on one line, each value single-quoted:
 
 ```bash
-MINION_FILE='<resolved_absolute_path>'
-MINION_EXTRA='<extra_input>'
-bash lib/minion-run.sh --file "$MINION_FILE" --extra-input "$MINION_EXTRA"
+bash lib/minion-run.sh --file '<resolved_absolute_path>' --extra-input '<extra_input>'
 ```
 
 If there is no extra input from the caller, omit the `--extra-input` flag entirely:
 
 ```bash
-MINION_FILE='<resolved_absolute_path>'
-bash lib/minion-run.sh --file "$MINION_FILE"
+bash lib/minion-run.sh --file '<resolved_absolute_path>'
 ```
 
-**Quoting rules:** For `<resolved_absolute_path>`, if the value contains single quotes, replace each `'` with `'\''` before embedding in the single-quoted assignment. The same rule applies to `<extra_input>`.
+**Quoting rules:** Escape single quotes inside `<resolved_absolute_path>` and `<extra_input>` using the `'\''` sequence, same as for `<prompt>` above.
 
 #### Mixed Mode Execution (file + inline overrides)
 
-When the user supplies a minion name AND inline override flags, pass the file path AND the inline flags to `minion-run.sh`. Inline values replace the file's values for the matching fields:
+When the user supplies a minion name AND inline override flags, pass the file path AND the inline flags on one `bash lib/minion-run.sh ...` invocation. Inline values replace the file's values for the matching fields:
 
 ```bash
-MINION_FILE='<resolved_absolute_path>'
-MINION_EXTRA='<extra_input>'
 bash lib/minion-run.sh \
-  --file "$MINION_FILE" \
-  --provider anthropic \
-  --model claude-opus-4-6 \
-  --claude-skills hook-development,command-development \
-  --extra-input "$MINION_EXTRA"
+  --file '<resolved_absolute_path>' \
+  --provider 'anthropic' \
+  --model 'claude-opus-4-6' \
+  --claude-skills 'hook-development,command-development' \
+  --extra-input '<extra_input>'
 ```
+
+Backslash line-continuations are allowed for readability, but the command must remain a single logical bash invocation — do not break it into separate assignment statements.
 
 For list overrides (`--extensions`, `--pi-skills`, `--claude-skills`), the comma-separated value REPLACES the file's list (no append). For boolean overrides (`--no-tools`, `--no-session`, `--stream`), presence of the flag forces the value to true.
 
@@ -259,24 +274,11 @@ The `--claude-skills` flag accepts a comma-separated list of skill identifiers. 
 
 ```bash
 bash lib/minion-run.sh \
-  --provider anthropic \
-  --model claude-opus-4-6 \
-  --claude-skills plugin-dev:hook-development \
-  --prompt "Design a UserPromptSubmit hook that filters spam"
+  --provider 'anthropic' \
+  --model 'claude-opus-4-6' \
+  --claude-skills 'plugin-dev:hook-development' \
+  --prompt 'Design a UserPromptSubmit hook that filters spam'
 ```
-
-#### Inline Mode Execution
-
-When using inline mode, pass provider, model, and prompt directly:
-
-```bash
-MINION_PROVIDER='<provider>'
-MINION_MODEL='<model>'
-MINION_PROMPT='<prompt>'
-bash lib/minion-run.sh --provider "$MINION_PROVIDER" --model "$MINION_MODEL" --prompt "$MINION_PROMPT"
-```
-
-**Quoting rules:** The `<provider>` and `<model>` values are typically simple identifiers (e.g., `openai`, `gpt-4`) that need no escaping. For `<prompt>`, if the value contains single quotes, replace each `'` with `'\''` before embedding it in the single-quoted assignment.
 
 #### On success (exit code 0):
 

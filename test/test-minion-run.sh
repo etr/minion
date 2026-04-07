@@ -16,11 +16,22 @@ FAIL=0
 MOCK_DIR="$(mktemp -d)"
 trap 'rm -rf "$MOCK_DIR"' EXIT
 
-# Mock pi script: echoes received args, supports configurable exit code and stderr
+# Mock pi script: echoes received args + stdin, supports configurable exit code and stderr.
+# The prompt is now delivered via stdin (not as a positional argument), so the mock
+# captures stdin and emits it on the same MOCK_ARGS line for assertion convenience.
+# The format "MOCK_ARGS: <flags> | STDIN: <prompt>" lets existing assertion patterns
+# update from "MOCK_ARGS: ... -- <prompt>" to "MOCK_ARGS: ... | STDIN: <prompt>".
 cat > "$MOCK_DIR/pi" <<'MOCKEOF'
 #!/usr/bin/env bash
-# Echo all arguments so tests can verify what was passed
-echo "MOCK_ARGS: $*"
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 # If MOCK_PI_STDERR is set, write it to stderr
 if [ -n "${MOCK_PI_STDERR:-}" ]; then
   echo "$MOCK_PI_STDERR" >&2
@@ -122,7 +133,7 @@ echo "-- Argument passing --"
 run_and_check \
   "passes --provider --model and prompt to pi" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: hello" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
@@ -130,7 +141,7 @@ run_and_check \
 run_and_check \
   "params in different order work" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: hello" \
   "" \
   -- "$MINION_RUN" --model gpt-4 --prompt hello --provider openai
 
@@ -138,7 +149,7 @@ run_and_check \
 run_and_check \
   "prompt with spaces preserved as single arg" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 -- hello world how are you" \
+  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: hello world how are you" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt "hello world how are you"
 

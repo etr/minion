@@ -16,16 +16,23 @@ FAIL=0
 MOCK_DIR="$(mktemp -d)"
 trap 'rm -rf "$MOCK_DIR"' EXIT
 
-# Mock pi script: echoes received args, supports configurable exit code and stderr
+# Mock pi script: echoes received args + stdin (the prompt is now delivered via stdin).
+# Format: "MOCK_ARGS: <flags> | STDIN: <prompt>" when stdin is non-empty,
+#         "MOCK_ARGS: <flags>" otherwise.
 cat > "$MOCK_DIR/pi" <<'MOCKEOF'
 #!/usr/bin/env bash
-# Echo all arguments so tests can verify what was passed
-echo "MOCK_ARGS: $*"
-# If MOCK_PI_STDERR is set, write it to stderr
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 if [ -n "${MOCK_PI_STDERR:-}" ]; then
   echo "$MOCK_PI_STDERR" >&2
 fi
-# If MOCK_PI_STDOUT is set, write it to stdout (in addition to MOCK_ARGS)
 if [ -n "${MOCK_PI_STDOUT:-}" ]; then
   echo "$MOCK_PI_STDOUT"
 fi
@@ -148,11 +155,11 @@ model: gpt-4
 ---
 Base prompt only")"
 
-# 2. No extra-input: body passed alone (with -- sentinel before it)
+# 2. No extra-input: body passed alone via stdin
 run_and_check \
   "--file without --extra-input uses body as-is" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 -- Base prompt only" \
+  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: Base prompt only" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE_NOEXTRA"
 
@@ -195,11 +202,11 @@ model: gpt-4
 ---
 Base prompt unchanged")"
 
-# 5. Empty --extra-input treated as absent (with -- sentinel before body)
+# 5. Empty --extra-input treated as absent (body delivered via stdin)
 run_and_check \
   "--extra-input with empty string uses body as-is" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 -- Base prompt unchanged" \
+  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: Base prompt unchanged" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE_EMPTY_EXTRA" --extra-input ""
 

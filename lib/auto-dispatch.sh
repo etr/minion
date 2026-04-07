@@ -330,12 +330,15 @@ elif $DISPATCHER_INHERIT; then
   exit 0
 else
   # Invoke Pi with dispatcher model.
-  # USER_PROMPT is embedded in DISPATCHER_PROMPT. Double-quoting prevents word splitting/globbing.
-  # Safety assumes Pi does not shell-evaluate its arguments.
+  # The dispatcher prompt embeds free-form $USER_PROMPT, which could begin with --.
+  # Pi CLI does not support a "--" end-of-options sentinel (it rejects bare "--" as
+  # an unknown option), so a prompt starting with -- passed positionally would be
+  # parsed as a flag. Deliver the prompt via stdin instead — stdin content is never
+  # parsed as argv, defanging flag injection completely.
   DISPATCH_OUTPUT=""
   DISPATCH_EXIT=0
   DISPATCH_OUTPUT="$(pi --provider "$DISPATCHER_PROVIDER" --model "$DISPATCHER_MODEL" \
-    --no-session --no-tools -- "$DISPATCHER_PROMPT" 2>/dev/null)" || DISPATCH_EXIT=$?
+    --no-session --no-tools 2>/dev/null <<< "$DISPATCHER_PROMPT")" || DISPATCH_EXIT=$?
 
   if [ $DISPATCH_EXIT -ne 0 ] || [ -z "$DISPATCH_OUTPUT" ]; then
     # Dispatcher failed — fall back to default

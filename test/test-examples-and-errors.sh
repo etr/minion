@@ -19,7 +19,16 @@ trap 'rm -rf "$MOCK_DIR"' EXIT
 
 cat > "$MOCK_DIR/pi" <<'MOCKEOF'
 #!/usr/bin/env bash
-echo "MOCK_ARGS: $*"
+# Mock pi: echoes args + stdin (the prompt is now delivered via stdin).
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 if [ -n "${MOCK_PI_STDERR:-}" ]; then
   echo "$MOCK_PI_STDERR" >&2
 fi

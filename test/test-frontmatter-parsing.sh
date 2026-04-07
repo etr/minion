@@ -16,16 +16,23 @@ FAIL=0
 MOCK_DIR="$(mktemp -d)"
 trap 'rm -rf "$MOCK_DIR"' EXIT
 
-# Mock pi script: echoes received args, supports configurable exit code and stderr
+# Mock pi script: echoes received args + stdin (the prompt is now delivered via stdin).
+# Format: "MOCK_ARGS: <flags> | STDIN: <prompt>" when stdin is non-empty,
+#         "MOCK_ARGS: <flags>" otherwise.
 cat > "$MOCK_DIR/pi" <<'MOCKEOF'
 #!/usr/bin/env bash
-# Echo all arguments so tests can verify what was passed
-echo "MOCK_ARGS: $*"
-# If MOCK_PI_STDERR is set, write it to stderr
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 if [ -n "${MOCK_PI_STDERR:-}" ]; then
   echo "$MOCK_PI_STDERR" >&2
 fi
-# If MOCK_PI_STDOUT is set, write it to stdout (in addition to MOCK_ARGS)
 if [ -n "${MOCK_PI_STDOUT:-}" ]; then
   echo "$MOCK_PI_STDOUT"
 fi
@@ -160,7 +167,7 @@ run_and_check \
 run_and_check \
   "inline mode still works" \
   0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 -- hello" \
+  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: hello" \
   "" \
   -- "$MINION_RUN" --provider openai --model gpt-4 --prompt hello
 
@@ -181,7 +188,7 @@ Review this code")"
 run_and_check \
   "provider and model map to pi flags" \
   0 \
-  "MOCK_ARGS: --provider anthropic --model claude-3-opus -- Review this code" \
+  "MOCK_ARGS: --provider anthropic --model claude-3-opus | STDIN: Review this code" \
   "" \
   -- "$MINION_RUN" --file "$MINFILE2"
 

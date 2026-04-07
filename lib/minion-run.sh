@@ -501,13 +501,13 @@ done <<EOF
 $EFFECTIVE_PI_SKILLS
 EOF
 
-# Final composed prompt argument (only if non-empty).
-# The -- sentinel ensures the prompt is never interpreted as a Pi CLI flag,
-# even if it begins with --.
-if [ -n "$COMPOSED" ]; then
-  cmd+=(-- "$COMPOSED")
-fi
-
 # --- Execute ---
-"${cmd[@]}"
+# The composed prompt is delivered via stdin rather than as a positional argument.
+# Pi CLI does not support an end-of-options "--" sentinel, so a prompt that begins
+# with "--" passed positionally would be parsed as an unknown (or worse, recognized)
+# flag — the same security concern that motivated the "--" sentinel previously.
+# Stdin content is never parsed as argv, so this defangs flag injection completely
+# while remaining compatible with Pi's interface (Pi reads its prompt from stdin
+# when stdin is not a tty, which is always the case here).
+"${cmd[@]}" <<< "$COMPOSED"
 exit $?

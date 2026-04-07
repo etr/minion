@@ -30,9 +30,20 @@ FIXTURE_DIR="$(mktemp -d)"
 _CLEANUP_DIRS+=("$FIXTURE_DIR")
 
 # Standard mock pi body: stored in a variable so with_mock_pi can restore it without
-# duplicating the heredoc.
+# duplicating the heredoc. The mock echoes args + stdin (the prompt is now delivered
+# via stdin, not as a positional argument). Format:
+#   "MOCK_ARGS: <flags> | STDIN: <prompt>" when stdin is non-empty,
+#   "MOCK_ARGS: <flags>"                    otherwise.
 _STANDARD_PI_BODY='#!/usr/bin/env bash
-echo "MOCK_ARGS: $*"
+STDIN_CONTENT=""
+if [ ! -t 0 ]; then
+  STDIN_CONTENT="$(cat)"
+fi
+if [ -n "$STDIN_CONTENT" ]; then
+  echo "MOCK_ARGS: $* | STDIN: $STDIN_CONTENT"
+else
+  echo "MOCK_ARGS: $*"
+fi
 if [ -n "${MOCK_PI_STDERR:-}" ]; then
   echo "$MOCK_PI_STDERR" >&2
 fi
@@ -952,19 +963,29 @@ run_and_check "--category default uses correct model for default route" 0 "MODEL
 
 # ============================================================
 echo ""
-echo "=== Dispatcher -- Sentinel (injection hardening) ==="
+echo "=== Dispatcher prompt delivery (flag-injection defang) ==="
 # ============================================================
-# The Pi CLI dispatcher invocation must include -- before $DISPATCHER_PROMPT
-# so that a user prompt beginning with -- is not interpreted as a Pi flag.
+# Pi CLI does not support a "--" end-of-options sentinel — it rejects bare "--"
+# as an unknown option — so the dispatcher prompt is delivered via stdin instead.
+# Stdin content is never parsed as argv, defanging flag injection completely.
+# This test verifies:
+#   1. The dispatcher prompt arrives via stdin (not as a positional argument)
+#   2. No bare "--" appears in argv (which would crash real Pi)
+#   3. The user's --no-tools-prefixed prompt does not appear in argv
 
-# A mock pi that records its raw args to a sentinel file (null-delimited).
 _SENTINEL_ARGS_FILE="$(mktemp)"
-_CLEANUP_DIRS+=("$_SENTINEL_ARGS_FILE")
+_SENTINEL_STDIN_FILE="$(mktemp)"
+_CLEANUP_DIRS+=("$_SENTINEL_ARGS_FILE" "$_SENTINEL_STDIN_FILE")
 
 _sentinel_args_pi_body="#!/usr/bin/env bash
-# Record each argument as a separate line to a file so we can inspect arg boundaries.
+# Record each argument as a separate line so we can inspect arg boundaries.
 printf '%s\n' \"\$@\" > '$_SENTINEL_ARGS_FILE'
-# Still echo MOCK_ARGS for existing tests that may depend on it.
+# Record stdin so we can verify the prompt was delivered there.
+if [ ! -t 0 ]; then
+  cat > '$_SENTINEL_STDIN_FILE'
+else
+  : > '$_SENTINEL_STDIN_FILE'
+fi
 echo \"MOCK_ARGS: \$*\"
 if [ -n \"\${MOCK_PI_STDOUT:-}\" ]; then
   echo \"\$MOCK_PI_STDOUT\"
@@ -980,19 +1001,41 @@ _sentinel_args_test() {
   run_and_check "dispatcher invokes pi with ROUTE:code-review when prompt starts with --" 0 "ROUTE:code-review" "" \
     -- bash "$AUTO_DISPATCH" --config "$FIXTURE_DIR/basic-auto.md" --prompt "--no-tools injected arg" --dry-run
 
-  # Inspect the recorded args: -- must appear as a standalone argument before the prompt.
-  local args_content
+  local args_content stdin_content
   args_content="$(cat "$_SENTINEL_ARGS_FILE" 2>/dev/null || echo MISSING)"
-  # Check that '--' appears as a standalone line (its own argument)
-  if echo "$args_content" | grep -qxF -- '--'; then
-    echo "  PASS: dispatcher pi call includes -- sentinel as standalone argument"
+  stdin_content="$(cat "$_SENTINEL_STDIN_FILE" 2>/dev/null || echo MISSING)"
+
+  # 1. Stdin must contain the user prompt (which begins with --no-tools).
+  if echo "$stdin_content" | grep -qF -- '--no-tools injected arg'; then
+    echo "  PASS: dispatcher prompt delivered via stdin"
     PASS=$((PASS + 1))
   else
-    echo "  FAIL: dispatcher pi call is missing -- sentinel before prompt"
-    echo "    recorded args (one per line): $args_content"
+    echo "  FAIL: dispatcher prompt not found in stdin"
+    echo "    stdin was: $stdin_content"
     FAIL=$((FAIL + 1))
   fi
-  rm -f "$_SENTINEL_ARGS_FILE"
+
+  # 2. argv must NOT contain a bare "--" (Pi rejects it as an unknown option).
+  if echo "$args_content" | grep -qxF -- '--'; then
+    echo "  FAIL: dispatcher pi call includes bare '--' in argv (Pi would reject this)"
+    echo "    recorded args (one per line): $args_content"
+    FAIL=$((FAIL + 1))
+  else
+    echo "  PASS: dispatcher pi call does not pass bare '--' in argv"
+    PASS=$((PASS + 1))
+  fi
+
+  # 3. argv must NOT contain the user prompt (it should only be in stdin).
+  if echo "$args_content" | grep -qF -- '--no-tools injected arg'; then
+    echo "  FAIL: dispatcher prompt unexpectedly appears in argv"
+    echo "    recorded args (one per line): $args_content"
+    FAIL=$((FAIL + 1))
+  else
+    echo "  PASS: dispatcher prompt does not leak into argv"
+    PASS=$((PASS + 1))
+  fi
+
+  rm -f "$_SENTINEL_ARGS_FILE" "$_SENTINEL_STDIN_FILE"
 }
 
 with_mock_pi "$_sentinel_args_pi_body" _sentinel_args_test
