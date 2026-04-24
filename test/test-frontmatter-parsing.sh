@@ -177,18 +177,20 @@ run_and_check \
 echo ""
 echo "-- String field parsing --"
 
-# Test: provider and model from frontmatter map to pi flags
+# Test: provider and model from frontmatter map to pi flags.
+# Under the caching layout (Fix A), the file body is routed through
+# --append-system-prompt and a stable "Begin." trigger is used as the
+# user message. This test asserts both the flag mapping AND the layout.
 MINFILE2="$(create_minion_file "---
 provider: anthropic
 model: claude-3-opus
 ---
 Review this code")"
 
-# The -- sentinel precedes the prompt argument in the final command.
 run_and_check \
-  "provider and model map to pi flags" \
+  "provider and model map to pi flags (caching layout)" \
   0 \
-  "MOCK_ARGS: --provider anthropic --model claude-3-opus | STDIN: Review this code" \
+  "MOCK_ARGS: --provider anthropic --model claude-3-opus --append-system-prompt Review this code | STDIN: Begin." \
   "" \
   -- "$MINION_RUN" --file "$MINFILE2"
 

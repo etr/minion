@@ -125,9 +125,14 @@ echo "=== Prompt Composition Tests ==="
 echo ""
 
 # ============================================================
-# Phase 1: --extra-input with --file composes prompt correctly
+# Phase 1: --extra-input with --file uses caching-friendly layout
 # ============================================================
-echo "-- Prompt composition --"
+# Fix A: when running in file mode with extra-input, the stable file body
+# is routed through --append-system-prompt so it becomes part of the
+# provider-cached prefix; the variable extra-input is piped via stdin as
+# the user message. This maximises prompt-cache hit rates on providers
+# that honour cache_control breakpoints.
+echo "-- Prompt composition (caching layout) --"
 
 MINFILE_COMPOSE="$(create_minion_file "---
 provider: openai
@@ -135,19 +140,63 @@ model: gpt-4
 ---
 Base prompt here")"
 
-# 1. extra-input appended to body with double newline separator
-run_and_check \
-  "--extra-input with --file composes body + newline + extra" \
-  0 \
-  "Base prompt here
+# 1. Caching layout: body → --append-system-prompt, extra-input → stdin
+check_caching_layout_file_extra() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --file "$MINFILE_COMPOSE" --extra-input "review auth.py" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
+  # Body must be in the --append-system-prompt arg
+  echo "$stdout" | grep -qF -- "--append-system-prompt Base prompt here" \
+    || { echo "        body not routed through --append-system-prompt"; return 1; }
+  # Extra-input must be the stdin (user message)
+  echo "$stdout" | grep -qF "STDIN: review auth.py" \
+    || { echo "        extra-input not delivered via stdin"; return 1; }
+  # Body must NOT appear in the STDIN portion
+  if echo "$stdout" | sed -n 's/.* | STDIN: //p' | grep -qF "Base prompt here"; then
+    echo "        body leaked into stdin (expected only in --append-system-prompt)"
+    return 1
+  fi
+  return 0
+}
+check "file mode + extra-input uses caching layout (body in append-sys, extra in stdin)" check_caching_layout_file_extra
 
-review auth.py" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_COMPOSE" --extra-input "review auth.py"
+# 1b. Existing append-system-prompt is preserved: file body is appended to it,
+# not overwritten, so caller-supplied append-system-prompt still takes effect.
+MINFILE_COMPOSE_WITH_APPEND="$(create_minion_file "---
+provider: openai
+model: gpt-4
+append-system-prompt: Be concise.
+---
+Base prompt here")"
+
+check_caching_layout_merges_append_sys() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --file "$MINFILE_COMPOSE_WITH_APPEND" --extra-input "review auth.py" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || return 1
+  # Both the file's append-system-prompt AND the body must be in the merged value
+  echo "$stdout" | grep -qF "Be concise." || { echo "        existing append-sys lost"; return 1; }
+  echo "$stdout" | grep -qF "Base prompt here" || { echo "        body missing from merged append-sys"; return 1; }
+  # Extra-input is still the stdin
+  echo "$stdout" | grep -qF "STDIN: review auth.py" || return 1
+  return 0
+}
+check "caching layout merges file body into existing append-system-prompt" check_caching_layout_merges_append_sys
 
 # ============================================================
-# Phase 2: --file without --extra-input uses body as-is
+# Phase 2: --file without --extra-input uses caching layout with trigger
 # ============================================================
+# Even without extra-input, file mode uses the caching layout: body goes
+# to --append-system-prompt and a stable "Begin." trigger is used as the
+# user message (stdin). This ensures repeated no-extra-input invocations
+# of the same minion hit the prompt cache (system + body + trigger are
+# all stable), and avoids pi's empty-initialMessage / whitespace-filter
+# edge cases that would otherwise drop the model call.
 
 MINFILE_NOEXTRA="$(create_minion_file "---
 provider: openai
@@ -155,13 +204,27 @@ model: gpt-4
 ---
 Base prompt only")"
 
-# 2. No extra-input: body passed alone via stdin
-run_and_check \
-  "--file without --extra-input uses body as-is" \
-  0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: Base prompt only" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_NOEXTRA"
+check_caching_layout_file_no_extra() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --file "$MINFILE_NOEXTRA" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
+  # Body routed through --append-system-prompt
+  echo "$stdout" | grep -qF -- "--append-system-prompt Base prompt only" \
+    || { echo "        body not routed through --append-system-prompt"; return 1; }
+  # Stable trigger is the user message
+  echo "$stdout" | grep -qF "STDIN: Begin." \
+    || { echo "        trigger not delivered via stdin"; return 1; }
+  # Body must not leak into stdin
+  if echo "$stdout" | sed -n 's/.* | STDIN: //p' | grep -qF "Base prompt only"; then
+    echo "        body leaked into stdin"
+    return 1
+  fi
+  return 0
+}
+check "file mode without extra-input uses caching layout + stable trigger" check_caching_layout_file_no_extra
 
 # ============================================================
 # Phase 3: --extra-input is now permitted in inline mode (FEATURE-claude-skills)
@@ -191,7 +254,7 @@ check_extra_inline_compose() {
 check "inline mode composes --prompt and --extra-input" check_extra_inline_compose
 
 # ============================================================
-# Phase 5: --extra-input with empty string uses body as-is
+# Phase 5: --extra-input with empty string is treated like absent
 # ============================================================
 echo ""
 echo "-- Edge cases --"
@@ -202,13 +265,22 @@ model: gpt-4
 ---
 Base prompt unchanged")"
 
-# 5. Empty --extra-input treated as absent (body delivered via stdin)
-run_and_check \
-  "--extra-input with empty string uses body as-is" \
-  0 \
-  "MOCK_ARGS: --provider openai --model gpt-4 | STDIN: Base prompt unchanged" \
-  "" \
-  -- "$MINION_RUN" --file "$MINFILE_EMPTY_EXTRA" --extra-input ""
+# 5. Empty --extra-input: same behaviour as no --extra-input at all — caching
+# layout activates with the stable "Begin." trigger as the user message.
+check_empty_extra_input_uses_caching_layout() {
+  local stdout
+  set +e
+  stdout="$("$MINION_RUN" --file "$MINFILE_EMPTY_EXTRA" --extra-input "" 2>/dev/null)"
+  local rc=$?
+  set -e
+  [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
+  echo "$stdout" | grep -qF -- "--append-system-prompt Base prompt unchanged" \
+    || { echo "        body not routed through --append-system-prompt"; return 1; }
+  echo "$stdout" | grep -qF "STDIN: Begin." \
+    || { echo "        trigger not delivered via stdin"; return 1; }
+  return 0
+}
+check "empty --extra-input uses caching layout + stable trigger" check_empty_extra_input_uses_caching_layout
 
 # ============================================================
 # Phase 6: --extra-input with missing value exits 2

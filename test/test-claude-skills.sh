@@ -868,48 +868,54 @@ run_and_check \
   -- "$MINION_RUN" --file "$MINFILE_REGRESSION"
 
 # ============================================================
-# Phase 8: Security — flag-injection defang via stdin delivery
+# Phase 8: Security — flag-injection defang via --append-system-prompt
 # ============================================================
 echo ""
-echo "-- prompt delivered via stdin (flag-injection defang) --"
+echo "-- flag-like prompt body is defanged (not parsed as a flag) --"
 
-# 8a. A prompt starting with --no-tools must be passed as literal text, not a flag.
-# Pi CLI does not support a "--" end-of-options sentinel — it rejects bare "--" as
-# an unknown option — so the prompt is delivered via stdin instead. Stdin content
-# is never parsed as argv, so a prompt beginning with --no-tools cannot be
-# misinterpreted as a Pi flag.
+# 8a. A minion body starting with --no-tools must be passed as literal text,
+# not re-parsed as a pi flag.
 #
-# The mock echoes "MOCK_ARGS: <flags> | STDIN: <prompt>". This test verifies:
-#   1. The flag-like prompt body appears in the STDIN portion (not argv)
-#   2. The flag-like prompt body does NOT appear in the args portion (before "| STDIN:")
+# Under the caching layout (Fix A), the file body is routed through
+# --append-system-prompt. Pi's arg parser at args.ts:90-91 unconditionally
+# consumes the next argv element as the value of --append-system-prompt
+# regardless of whether that element starts with --, so a flag-like body
+# cannot be misinterpreted as a separate flag. Bash's array expansion
+# guarantees the value stays a single argv element.
+#
+# The defang mechanism shifted from "body in stdin" (legacy) to "body as
+# value of --append-system-prompt" (new), but the security property is
+# preserved: the body is consumed as a value, never as a flag token.
 MINFILE_SENTINEL="$(create_minion_file "---
 provider: openai
 model: gpt-4
 ---
 --no-tools is the prompt body")"
 
-check_stdin_defang() {
+check_flag_defang() {
   local stdout
   set +e
   stdout="$("$MINION_RUN" --file "$MINFILE_SENTINEL" 2>/dev/null)"
   local rc=$?
   set -e
   [ "$rc" = "0" ] || { echo "        rc=$rc"; return 1; }
-  # The prompt must arrive via STDIN, not argv.
-  if ! echo "$stdout" | grep -qFe "STDIN: --no-tools is the prompt body"; then
-    echo "        stdout does not contain 'STDIN: --no-tools is the prompt body'"
+  # The body must be immediately preceded by --append-system-prompt in argv,
+  # which proves pi will consume it as the value of that flag rather than
+  # re-parsing it. The mock joins argv with spaces; this substring match is
+  # sufficient because bash array expansion keeps the value as a single
+  # argv element even if it contains spaces.
+  if ! echo "$stdout" | grep -qFe "--append-system-prompt --no-tools is the prompt body"; then
+    echo "        body not positioned as value of --append-system-prompt"
     echo "        stdout was: $stdout"
     return 1
   fi
-  # The args portion (everything before "| STDIN:") must NOT contain the flag-like prompt.
-  local args_portion
-  args_portion="$(echo "$stdout" | head -1 | sed 's/ | STDIN:.*//')"
-  if echo "$args_portion" | grep -qFe "--no-tools is the prompt body"; then
-    echo "        args portion unexpectedly contains the flag-like prompt: $args_portion"
+  # The body must not leak into the stdin portion.
+  if echo "$stdout" | sed -n 's/.* | STDIN: //p' | grep -qF "prompt body"; then
+    echo "        body leaked into stdin"
     return 1
   fi
 }
-check "flag-like prompt is delivered via stdin, not argv" check_stdin_defang
+check "flag-like body is consumed as --append-system-prompt value, not a flag" check_flag_defang
 
 # ============================================================
 # Phase 9: Security — absolute-path confinement (Finding 2)

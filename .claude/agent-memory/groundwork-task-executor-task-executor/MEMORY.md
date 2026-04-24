@@ -1,0 +1,1 @@
+- [Minion Plugin Setup](project_minion_plugin.md) — Pure markdown+JSON+bash Claude Code plugin, no package manager, bash tests in test/

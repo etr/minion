@@ -451,26 +451,78 @@ if [ "$SKILLS_RC" != "0" ]; then
   exit "$SKILLS_RC"
 fi
 
-if [ -n "$SKILLS_SECTION" ]; then
-  # The --- separator goes between the (trailing-newline-stripped) skills section
-  # and any body/extra-input that follows. Use $'\n' to control spacing precisely.
-  COMPOSED="${SKILLS_SECTION}"$'\n\n---'
+# Caching-friendly layout (Fix A):
+# In file mode, move the stable prefix (skills section + file body) into
+# --append-system-prompt so it becomes part of the cacheable system prefix
+# on the provider side. Only the variable extra-input is piped via stdin
+# as the user message. This dramatically improves prompt-cache hit rates
+# for providers that honor cache_control (e.g. Anthropic, MiniMax via
+# anthropic-messages API).
+#
+# When extra-input is absent, a minimal stable trigger is used as the user
+# message. It's required because:
+#   1. Pi's print-mode treats an empty initialMessage as falsy and skips
+#      the model call entirely, and
+#   2. pi-ai's anthropic provider filters out whitespace-only user
+#      messages before building the request (`.trim().length > 0`),
+#      which would produce zero user messages and an API rejection.
+# The trigger itself is stable, so repeated no-extra-input invocations of
+# the same minion become near-100% cache hits after the first call.
+#
+# Falls back to the legacy single-stdin layout only when:
+#   - inline mode (no --file), or
+#   - the stable prefix is empty (no body, no skills — nothing to cache)
+CACHING_LAYOUT_TRIGGER="Begin."
+USE_CACHING_LAYOUT=0
+if [ -n "$FILE_PATH" ]; then
+  STABLE_PREFIX=""
+  if [ -n "$SKILLS_SECTION" ]; then
+    STABLE_PREFIX="$SKILLS_SECTION"
+  fi
   if [ -n "$EFFECTIVE_BODY" ]; then
-    COMPOSED="${COMPOSED}"$'\n\n'"${EFFECTIVE_BODY}"
-  fi
-  if [ -n "$EXTRA_INPUT" ]; then
-    COMPOSED="${COMPOSED}"$'\n\n'"${EXTRA_INPUT}"
-  fi
-else
-  COMPOSED=""
-  if [ -n "$EFFECTIVE_BODY" ]; then
-    COMPOSED="$EFFECTIVE_BODY"
-  fi
-  if [ -n "$EXTRA_INPUT" ]; then
-    if [ -n "$COMPOSED" ]; then
-      COMPOSED="${COMPOSED}"$'\n\n'"${EXTRA_INPUT}"
+    if [ -n "$STABLE_PREFIX" ]; then
+      STABLE_PREFIX="${STABLE_PREFIX}"$'\n\n---\n\n'"${EFFECTIVE_BODY}"
     else
+      STABLE_PREFIX="$EFFECTIVE_BODY"
+    fi
+  fi
+  if [ -n "$STABLE_PREFIX" ]; then
+    USE_CACHING_LAYOUT=1
+    if [ -n "$EFFECTIVE_APPEND_SYS" ]; then
+      EFFECTIVE_APPEND_SYS="${EFFECTIVE_APPEND_SYS}"$'\n\n'"${STABLE_PREFIX}"
+    else
+      EFFECTIVE_APPEND_SYS="$STABLE_PREFIX"
+    fi
+    if [ -n "$EXTRA_INPUT" ]; then
       COMPOSED="$EXTRA_INPUT"
+    else
+      COMPOSED="$CACHING_LAYOUT_TRIGGER"
+    fi
+  fi
+fi
+
+if [ "$USE_CACHING_LAYOUT" = "0" ]; then
+  if [ -n "$SKILLS_SECTION" ]; then
+    # The --- separator goes between the (trailing-newline-stripped) skills section
+    # and any body/extra-input that follows. Use $'\n' to control spacing precisely.
+    COMPOSED="${SKILLS_SECTION}"$'\n\n---'
+    if [ -n "$EFFECTIVE_BODY" ]; then
+      COMPOSED="${COMPOSED}"$'\n\n'"${EFFECTIVE_BODY}"
+    fi
+    if [ -n "$EXTRA_INPUT" ]; then
+      COMPOSED="${COMPOSED}"$'\n\n'"${EXTRA_INPUT}"
+    fi
+  else
+    COMPOSED=""
+    if [ -n "$EFFECTIVE_BODY" ]; then
+      COMPOSED="$EFFECTIVE_BODY"
+    fi
+    if [ -n "$EXTRA_INPUT" ]; then
+      if [ -n "$COMPOSED" ]; then
+        COMPOSED="${COMPOSED}"$'\n\n'"${EXTRA_INPUT}"
+      else
+        COMPOSED="$EXTRA_INPUT"
+      fi
     fi
   fi
 fi
